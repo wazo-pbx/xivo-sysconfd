@@ -1,0 +1,27 @@
+#!/bin/bash
+
+SERVICES="ssh nginx"
+
+function start {
+    for service in $SERVICES
+    do
+        echo "Launch $service ..."
+        if [ $service == nginx ]
+        then
+            check_nginx
+        fi
+        service $service start
+    done
+}
+
+function check_nginx {
+    service nginx status
+    if [ $? == 0 ]
+    then
+        pkill -9 nginx
+    fi
+}
+
+# Launching xivo-sysconfd
+start
+xivo-sysconfd -d -f -u www-data
