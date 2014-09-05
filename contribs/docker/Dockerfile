@@ -17,6 +17,8 @@ RUN apt-get -qq -y install \
     python-dev \
     libpq-dev \
     libyaml-dev \
+    python-dumbnet \
+    python-netifaces \
     nginx \
     vim \
     curl \
@@ -31,6 +33,7 @@ RUN pip install -r requirements.txt
 RUN python setup.py install
 
 # Configure environment
+RUN touch /etc/network/interfaces
 RUN touch /var/log/xivo-sysconfd.log
 RUN chown www-data: /var/log/xivo-sysconfd.log
 RUN cp debian/init /etc/init.d/xivo-sysconfd

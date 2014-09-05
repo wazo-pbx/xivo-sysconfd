@@ -16,13 +16,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 import logging
+import json
 
-from xivo import http_json_server
-from xivo.http_json_server import CMD_R
+from flask.helpers import make_response
+from ..sysconfd_server import app, VERSION
 
 logger = logging.getLogger('xivo_sysconf.modules.status_check')
 
-def status_check(args, options):
-    return {'status': 'up'}
+@app.route('/status_check'.format(version=VERSION))
+def status_check():
+    res = json.dumps({'status': 'up'})
+    return make_response(res, 200, None, 'application/json')
 
-http_json_server.register(status_check, CMD_R, name='status-check')

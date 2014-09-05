@@ -15,20 +15,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import json
-import logging
 import requests
-
 from flask import Flask, request
-from flask.helpers import make_response
 
-logger = logging.getLogger(__name__)
 app = Flask(__name__)
 session = requests.Session()
-
 VERSION = 0.1
 
-@app.route('/checkup'.format(version=VERSION))
-def checkup():
-    res = json.dumps({'Message': 'Not Supported'})
-    return make_response(res, 501, None, 'application/json')
+from xivo_sysconf.modules import check, dnetintf

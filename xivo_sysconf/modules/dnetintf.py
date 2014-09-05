@@ -21,13 +21,12 @@ import re
 import dumbnet
 import netifaces
 import subprocess
+import json
 
 from time import time
 from shutil import copy2
 
-from xivo import http_json_server
 from xivo.http_json_server import HttpReqError
-from xivo.http_json_server import CMD_R, CMD_RW
 from xivo.moresynchro import RWLock
 from xivo import xys
 from xivo import network
@@ -37,6 +36,8 @@ from xivo import system
 
 from xivo_sysconf import helpers
 
+from flask.helpers import make_response
+from ..sysconfd_server import app, VERSION
 
 log = logging.getLogger('xivo_sysconf.modules.dnetintf')
 
@@ -515,30 +516,22 @@ class DNETIntf:
         self.CONFIG['interfaces_backup_path'] = os.path.join(backup_path,
                                                              self.CONFIG['interfaces_path'].lstrip(os.path.sep))
 
-    def discover_netifaces(self, args, options):
+    def discover_netifaces(self):
         """
         GET /discover_netifaces
         """
-        self.args = args
-        self.options = options
-
-        if not self.LOCK.acquire_read(self.CONFIG['lock_timeout']):
-            raise HttpReqError(503, "unable to take LOCK for reading after %s seconds" % self.CONFIG['lock_timeout'])
 
         rs = {}
 
-        try:
-            self.inetxparser.reloadfile()
-            for iface in netifaces.interfaces():
-                info = self.get_netiface_info(iface)
-                if info:
-                    rs[iface] = info
+        self.inetxparser.reloadfile()
+        for iface in netifaces.interfaces():
+            info = self.get_netiface_info(iface)
+            if info:
+                rs[iface] = info
 
-            return rs
-        finally:
-            self.LOCK.release()
+        return rs
 
-    def netiface(self, args, options):
+    def netiface(self):
         """
         GET /netiface
 
@@ -547,27 +540,19 @@ class DNETIntf:
         >>> netiface({}, {'ifname': {0: 'eth0', 1: 'eth1'}})
         >>> netiface({}, {'ifname': ['eth0', 'eth1']})
         """
-        self.args = args
-        self.options = options
 
         if 'ifname' in self.options:
             ifaces = helpers.extract_scalar(self.options['ifname'])
             if not ifaces:
-                raise HttpReqError(415, "invalid option 'ifname'")
+                raise ("invalid option 'ifname'")
         else:
-            return self.discover_netifaces({}, {})
+            return self.discover_netifaces()
 
-        if not self.LOCK.acquire_read(self.CONFIG['lock_timeout']):
-            raise HttpReqError(503, "unable to take LOCK for reading after %s seconds" % self.CONFIG['lock_timeout'])
+        self.inetxparser.reloadfile()
+        if len(ifaces) == 1:
+            return self.get_netiface_info(ifaces[0])
 
-        try:
-            self.inetxparser.reloadfile()
-            if len(ifaces) == 1:
-                return self.get_netiface_info(ifaces[0])
-
-            return dict((iface, self.get_netiface_info(iface)) for iface in ifaces)
-        finally:
-            self.LOCK.release()
+        return dict((iface, self.get_netiface_info(iface)) for iface in ifaces)
 
     def netiface_from_dst_address(self, args, options):
         """
@@ -1103,12 +1088,20 @@ class DNETIntf:
 
 dnetintf = DNETIntf()
 
-http_json_server.register(dnetintf.discover_netifaces, CMD_R, safe_init=dnetintf.safe_init)
-http_json_server.register(dnetintf.netiface, CMD_R)
-http_json_server.register(dnetintf.netiface_from_dst_address, CMD_R)
-http_json_server.register(dnetintf.netiface_from_src_address, CMD_R)
-http_json_server.register(dnetintf.modify_physical_eth_ipv4, CMD_RW)
-http_json_server.register(dnetintf.replace_virtual_eth_ipv4, CMD_RW)
-http_json_server.register(dnetintf.modify_eth_ipv4, CMD_RW)
-http_json_server.register(dnetintf.change_state_eth_ipv4, CMD_RW)
-http_json_server.register(dnetintf.delete_eth_ipv4, CMD_R)
+@app.route('/discover_netifaces'.format(version=VERSION))
+def discover_netifaces():
+    res = json.dumps(dnetintf.discover_netifaces())
+    return make_response(res, 200, None, 'application/json')
+
+@app.route('/netiface'.format(version=VERSION))
+def netiface():
+    res = json.dumps(dnetintf.netiface())
+    return make_response(res, 200, None, 'application/json')
+
+#http_json_server.register(dnetintf.netiface_from_dst_address, CMD_R)
+#http_json_server.register(dnetintf.netiface_from_src_address, CMD_R)
+#http_json_server.register(dnetintf.modify_physical_eth_ipv4, CMD_RW)
+#http_json_server.register(dnetintf.replace_virtual_eth_ipv4, CMD_RW)
+#http_json_server.register(dnetintf.modify_eth_ipv4, CMD_RW)
+#http_json_server.register(dnetintf.change_state_eth_ipv4, CMD_RW)
+#http_json_server.register(dnetintf.delete_eth_ipv4, CMD_R)

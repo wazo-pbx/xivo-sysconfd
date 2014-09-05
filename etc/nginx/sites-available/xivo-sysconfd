@@ -2,7 +2,7 @@ server {
     listen 0.0.0.0:8668 default_server;
     server_name $domain;
     location / { try_files $uri @xivo-sysconfd; }
-    location @xivo-sysconfd {
+    location @xivo-amid {
          include fastcgi_params;
          fastcgi_param PATH_INFO $fastcgi_script_name;
          fastcgi_param SCRIPT_NAME "";

@@ -26,7 +26,6 @@ from xivo.user_rights import change_user
 from xivo.xivo_logging import setup_logging
 from xivo_sysconf.config import config
 from xivo_sysconf import sysconfd_server
-#from xivo_sysconf.modules import *
 
 logger = logging.getLogger(__name__)
 
