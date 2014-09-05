@@ -27,7 +27,6 @@ from time import time
 from shutil import copy2
 
 from xivo.http_json_server import HttpReqError
-from xivo.moresynchro import RWLock
 from xivo import xys
 from xivo import network
 from xivo import interfaces
@@ -346,7 +345,6 @@ class DNETIntf:
     Network Interfaces class.
     """
 
-    LOCK = RWLock()
     CONFIG = {'interfaces_file': os.path.join(os.path.sep, 'etc', 'network', 'interfaces'),
               'interfaces_tpl_file': os.path.join('network', 'interfaces'),
               'netiface_up_cmd': "sudo /sbin/ifup",
@@ -378,13 +376,7 @@ class DNETIntf:
             except ValueError, e:
                 raise HttpReqError(415, "%s: %s" % (e, x))
 
-        if not self.LOCK.acquire_read(self.CONFIG['lock_timeout']):
-            raise HttpReqError(503, "unable to take LOCK for reading after %s seconds" % self.CONFIG['lock_timeout'])
-
-        try:
-            return dict((str(address), function(address)) for address in addresses)
-        finally:
-            self.LOCK.release()
+        return dict((str(address), function(address)) for address in addresses)
 
     def get_netiface_info(self, iface):
         try:
@@ -686,8 +678,6 @@ class DNETIntf:
 
         if not os.access(self.CONFIG['interfaces_path'], (os.X_OK | os.W_OK)):
             raise HttpReqError(415, "path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path'])
-        elif not self.LOCK.acquire_read(self.CONFIG['lock_timeout']):
-            raise HttpReqError(503, "unable to take LOCK for reading after %s seconds" % self.CONFIG['lock_timeout'])
 
         self.args['auto'] = self.args.get('auto', True)
         self.args['family'] = 'inet'
@@ -698,31 +688,29 @@ class DNETIntf:
 
         netifacesbakfile = None
 
+        if self.CONFIG['netiface_down_cmd']:
+            subprocess.call(self.CONFIG['netiface_down_cmd'].strip().split() + [eth['name']])
+
+        for iface in netifaces.interfaces():
+            conf['netIfaces'][iface] = 'reserved'
+
+        conf['netIfaces'][eth['name']] = eth['name']
+        conf['vlans'][eth['name']] = {0: eth['name']}
+        conf['customipConfs'][eth['name']] = self.args
+
+        filecontent, netifacesbakfile = self.get_interface_filecontent(conf)
+
         try:
-            if self.CONFIG['netiface_down_cmd']:
-                subprocess.call(self.CONFIG['netiface_down_cmd'].strip().split() + [eth['name']])
+            system.file_writelines_flush_sync(self.CONFIG['interfaces_file'], filecontent)
 
-            for iface in netifaces.interfaces():
-                conf['netIfaces'][iface] = 'reserved'
-
-            conf['netIfaces'][eth['name']] = eth['name']
-            conf['vlans'][eth['name']] = {0: eth['name']}
-            conf['customipConfs'][eth['name']] = self.args
-
-            filecontent, netifacesbakfile = self.get_interface_filecontent(conf)
-
-            try:
-                system.file_writelines_flush_sync(self.CONFIG['interfaces_file'], filecontent)
-
-                if self.args.get('up', True) and self.CONFIG['netiface_up_cmd']:
-                    subprocess.call(self.CONFIG['netiface_up_cmd'].strip().split() + [eth['name']])
-            except Exception, e:
-                if netifacesbakfile:
-                    copy2(netifacesbakfile, self.CONFIG['interfaces_file'])
-                raise e.__class__(str(e))
-            return True
-        finally:
-            self.LOCK.release()
+            if self.args.get('up', True) and self.CONFIG['netiface_up_cmd']:
+                subprocess.call(self.CONFIG['netiface_up_cmd'].strip().split() + [eth['name']])
+        except Exception, e:
+            if netifacesbakfile:
+                copy2(netifacesbakfile, self.CONFIG['interfaces_file'])
+            raise e.__class__(str(e))
+        return True
+      
 
     REPLACE_VIRTUAL_ETH_IPV4_SCHEMA = xys.load("""
     ifname:         !!str vlan42
@@ -811,8 +799,6 @@ class DNETIntf:
 
         if not os.access(self.CONFIG['interfaces_path'], (os.X_OK | os.W_OK)):
             raise HttpReqError(415, "path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path'])
-        elif not self.LOCK.acquire_read(self.CONFIG['lock_timeout']):
-            raise HttpReqError(503, "unable to take LOCK for reading after %s seconds" % self.CONFIG['lock_timeout'])
 
         self.args['auto'] = self.args.get('auto', True)
         self.args['family'] = 'inet'
@@ -823,32 +809,29 @@ class DNETIntf:
 
         netifacesbakfile = None
 
+        if self.CONFIG['netiface_down_cmd']:
+            subprocess.call(self.CONFIG['netiface_down_cmd'].strip().split() + [self.options['ifname']])
+
+        for iface in netifaces.interfaces():
+            if self.options['ifname'] != iface:
+                conf['netIfaces'][iface] = 'reserved'
+
+        conf['netIfaces'][self.args['ifname']] = self.args['ifname']
+        conf['vlans'][self.args['ifname']] = {self.args.get('vlan-id', 0): self.args['ifname']}
+        conf['customipConfs'][self.args['ifname']] = self.args
+
+        filecontent, netifacesbakfile = self.get_interface_filecontent(conf)
+
         try:
-            if self.CONFIG['netiface_down_cmd']:
-                subprocess.call(self.CONFIG['netiface_down_cmd'].strip().split() + [self.options['ifname']])
+            system.file_writelines_flush_sync(self.CONFIG['interfaces_file'], filecontent)
 
-            for iface in netifaces.interfaces():
-                if self.options['ifname'] != iface:
-                    conf['netIfaces'][iface] = 'reserved'
-
-            conf['netIfaces'][self.args['ifname']] = self.args['ifname']
-            conf['vlans'][self.args['ifname']] = {self.args.get('vlan-id', 0): self.args['ifname']}
-            conf['customipConfs'][self.args['ifname']] = self.args
-
-            filecontent, netifacesbakfile = self.get_interface_filecontent(conf)
-
-            try:
-                system.file_writelines_flush_sync(self.CONFIG['interfaces_file'], filecontent)
-
-                if self.args.get('up', True) and self.CONFIG['netiface_up_cmd']:
-                    subprocess.call(self.CONFIG['netiface_up_cmd'].strip().split() + [self.args['ifname']])
-            except Exception, e:
-                if netifacesbakfile:
-                    copy2(netifacesbakfile, self.CONFIG['interfaces_file'])
-                raise e.__class__(str(e))
-            return True
-        finally:
-            self.LOCK.release()
+            if self.args.get('up', True) and self.CONFIG['netiface_up_cmd']:
+                subprocess.call(self.CONFIG['netiface_up_cmd'].strip().split() + [self.args['ifname']])
+        except Exception, e:
+            if netifacesbakfile:
+                copy2(netifacesbakfile, self.CONFIG['interfaces_file'])
+            raise e.__class__(str(e))
+        return True
 
     MODIFY_ETH_IPV4_SCHEMA = xys.load("""
     address:    !~ipv4_address 192.168.0.1
@@ -909,8 +892,6 @@ class DNETIntf:
             raise HttpReqError(415, "invalid arguments for command")
         elif not os.access(self.CONFIG['interfaces_path'], (os.X_OK | os.W_OK)):
             raise HttpReqError(415, "path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path'])
-        elif not self.LOCK.acquire_read(self.CONFIG['lock_timeout']):
-            raise HttpReqError(503, "unable to take LOCK for reading after %s seconds" % self.CONFIG['lock_timeout'])
 
         conf = {'netIfaces': {},
                 'vlans': {},
@@ -919,41 +900,38 @@ class DNETIntf:
         ret = False
         netifacesbakfile = None
 
+        if self.CONFIG['netiface_down_cmd'] \
+                and subprocess.call(self.CONFIG['netiface_down_cmd'].strip().split() + [eth['name']]) == 0 \
+                and not (eth['flags'] & dumbnet.INTF_FLAG_UP):
+            ret = True
+
+        for iface in netifaces.interfaces():
+            conf['netIfaces'][iface] = 'reserved'
+
+        eth['ifname'] = eth['name']
+        conf['netIfaces'][eth['name']] = eth['name']
+        conf['vlans'][eth['name']] = {eth.get('vlan-id', 0): eth['name']}
+        conf['ipConfs'][eth['name']] = eth
+
+        filecontent, netifacesbakfile = self.get_interface_filecontent(conf)
+
         try:
-            if self.CONFIG['netiface_down_cmd'] \
-                    and subprocess.call(self.CONFIG['netiface_down_cmd'].strip().split() + [eth['name']]) == 0 \
-                    and not (eth['flags'] & dumbnet.INTF_FLAG_UP):
+            system.file_writelines_flush_sync(self.CONFIG['interfaces_file'], filecontent)
+
+            if self.CONFIG['netiface_up_cmd'] \
+                    and (eth['flags'] & dumbnet.INTF_FLAG_UP) \
+                    and subprocess.call(self.CONFIG['netiface_up_cmd'].strip().split() + [eth['name']]) == 0:
                 ret = True
 
-            for iface in netifaces.interfaces():
-                conf['netIfaces'][iface] = 'reserved'
-
-            eth['ifname'] = eth['name']
-            conf['netIfaces'][eth['name']] = eth['name']
-            conf['vlans'][eth['name']] = {eth.get('vlan-id', 0): eth['name']}
-            conf['ipConfs'][eth['name']] = eth
-
-            filecontent, netifacesbakfile = self.get_interface_filecontent(conf)
-
-            try:
-                system.file_writelines_flush_sync(self.CONFIG['interfaces_file'], filecontent)
-
-                if self.CONFIG['netiface_up_cmd'] \
-                        and (eth['flags'] & dumbnet.INTF_FLAG_UP) \
-                        and subprocess.call(self.CONFIG['netiface_up_cmd'].strip().split() + [eth['name']]) == 0:
-                    ret = True
-
-                if not ret:
-                    if 'gateway' in eth and not (eth['flags'] & dumbnet.INTF_FLAG_UP):
-                        del eth['gateway']
-                    self.netcfg.set(eth)
-            except Exception, e:
-                if netifacesbakfile:
-                    copy2(netifacesbakfile, self.CONFIG['interfaces_file'])
-                raise e.__class__(str(e))
-            return True
-        finally:
-            self.LOCK.release()
+            if not ret:
+                if 'gateway' in eth and not (eth['flags'] & dumbnet.INTF_FLAG_UP):
+                    del eth['gateway']
+                self.netcfg.set(eth)
+        except Exception, e:
+            if netifacesbakfile:
+                copy2(netifacesbakfile, self.CONFIG['interfaces_file'])
+            raise e.__class__(str(e))
+        return True
 
     CHANGE_STATE_ETH_SCHEMA = xys.load("""
     state:  !!bool True
@@ -973,8 +951,6 @@ class DNETIntf:
 
         if not xys.validate(self.args, self.CHANGE_STATE_ETH_SCHEMA):
             raise HttpReqError(415, "invalid arguments for command")
-        elif not self.LOCK.acquire_read(self.CONFIG['lock_timeout']):
-            raise HttpReqError(503, "unable to take LOCK for reading after %s seconds" % self.CONFIG['lock_timeout'])
 
         conf = {'netIfaces': {},
                 'vlans': {},
@@ -983,46 +959,43 @@ class DNETIntf:
         ret = False
         netifacesbakfile = None
 
+        for iface in netifaces.interfaces():
+            conf['netIfaces'][iface] = 'reserved'
+
+        if self.args['state']:
+            eth['auto'] = True
+            eth['flags'] |= dumbnet.INTF_FLAG_UP
+
+            if self.CONFIG['netiface_up_cmd'] \
+                    and subprocess.call(self.CONFIG['netiface_up_cmd'].strip().split() + [eth['name']]) == 0:
+                ret = True
+        else:
+            eth['auto'] = False
+            eth['flags'] &= ~dumbnet.INTF_FLAG_UP
+
+            if self.CONFIG['netiface_down_cmd'] \
+                    and subprocess.call(self.CONFIG['netiface_down_cmd'].strip().split() + [eth['name']]) == 0:
+                ret = True
+
+        eth['ifname'] = eth['name']
+        conf['netIfaces'][eth['name']] = eth['name']
+        conf['vlans'][eth['name']] = {eth.get('vlan-id', 0): eth['name']}
+        conf['customipConfs'][eth['name']] = eth
+
+        filecontent, netifacesbakfile = self.get_interface_filecontent(conf)
+
         try:
-            for iface in netifaces.interfaces():
-                conf['netIfaces'][iface] = 'reserved'
+            system.file_writelines_flush_sync(self.CONFIG['interfaces_file'], filecontent)
 
-            if self.args['state']:
-                eth['auto'] = True
-                eth['flags'] |= dumbnet.INTF_FLAG_UP
-
-                if self.CONFIG['netiface_up_cmd'] \
-                        and subprocess.call(self.CONFIG['netiface_up_cmd'].strip().split() + [eth['name']]) == 0:
-                    ret = True
-            else:
-                eth['auto'] = False
-                eth['flags'] &= ~dumbnet.INTF_FLAG_UP
-
-                if self.CONFIG['netiface_down_cmd'] \
-                        and subprocess.call(self.CONFIG['netiface_down_cmd'].strip().split() + [eth['name']]) == 0:
-                    ret = True
-
-            eth['ifname'] = eth['name']
-            conf['netIfaces'][eth['name']] = eth['name']
-            conf['vlans'][eth['name']] = {eth.get('vlan-id', 0): eth['name']}
-            conf['customipConfs'][eth['name']] = eth
-
-            filecontent, netifacesbakfile = self.get_interface_filecontent(conf)
-
-            try:
-                system.file_writelines_flush_sync(self.CONFIG['interfaces_file'], filecontent)
-
-                if not ret:
-                    if not self.args['state'] and 'gateway' in eth:
-                        del eth['gateway']
-                    self.netcfg.set(eth)
-            except Exception, e:
-                if netifacesbakfile:
-                    copy2(netifacesbakfile, self.CONFIG['interfaces_file'])
-                raise e.__class__(str(e))
-            return True
-        finally:
-            self.LOCK.release()
+            if not ret:
+                if not self.args['state'] and 'gateway' in eth:
+                    del eth['gateway']
+                self.netcfg.set(eth)
+        except Exception, e:
+            if netifacesbakfile:
+                copy2(netifacesbakfile, self.CONFIG['interfaces_file'])
+            raise e.__class__(str(e))
+        return True
 
     def delete_eth_ipv4(self, args, options):
         """
@@ -1042,48 +1015,42 @@ class DNETIntf:
             if e.code == 404:
                 pass
 
-        if not self.LOCK.acquire_read(self.CONFIG['lock_timeout']):
-            raise HttpReqError(503, "unable to take LOCK for reading after %s seconds" % self.CONFIG['lock_timeout'])
-
         conf = {'netIfaces': {}}
 
         ret = False
         netifacesbakfile = None
         ifname = self.options['ifname']
 
+        for iface in netifaces.interfaces():
+            conf['netIfaces'][iface] = 'reserved'
+
+        conf['netIfaces'][ifname] = 'removed'
+
+        if self.CONFIG['netiface_ip_delete_cmd'] \
+                and subprocess.call(self.CONFIG['netiface_ip_delete_cmd'].strip().split() + [ifname]) == 0:
+            ret = True
+
+        filecontent, netifacesbakfile = self.get_interface_filecontent(conf)
+
         try:
-            for iface in netifaces.interfaces():
-                conf['netIfaces'][iface] = 'reserved'
+            system.file_writelines_flush_sync(self.CONFIG['interfaces_file'], filecontent)
 
-            conf['netIfaces'][ifname] = 'removed'
+            if ret:
+                return True
+            elif not eth:
+                raise HttpReqError(404, "interface not found")
 
-            if self.CONFIG['netiface_ip_delete_cmd'] \
-                    and subprocess.call(self.CONFIG['netiface_ip_delete_cmd'].strip().split() + [ifname]) == 0:
-                ret = True
-
-            filecontent, netifacesbakfile = self.get_interface_filecontent(conf)
-
-            try:
-                system.file_writelines_flush_sync(self.CONFIG['interfaces_file'], filecontent)
-
-                if ret:
-                    return True
-                elif not eth:
-                    raise HttpReqError(404, "interface not found")
-
-                eth['flags'] &= ~dumbnet.INTF_FLAG_UP
-                if 'gateway' in eth:
-                    del eth['gateway']
-                self.netcfg.set(eth)
-            except HttpReqError, e:
-                raise e.__class__(e.code, e.text)
-            except Exception, e:
-                if netifacesbakfile:
-                    copy2(netifacesbakfile, self.CONFIG['interfaces_file'])
-                raise e.__class__(str(e))
-            return True
-        finally:
-            self.LOCK.release()
+            eth['flags'] &= ~dumbnet.INTF_FLAG_UP
+            if 'gateway' in eth:
+                del eth['gateway']
+            self.netcfg.set(eth)
+        except HttpReqError, e:
+            raise e.__class__(e.code, e.text)
+        except Exception, e:
+            if netifacesbakfile:
+                copy2(netifacesbakfile, self.CONFIG['interfaces_file'])
+            raise e.__class__(str(e))
+        return True
 
 
 dnetintf = DNETIntf()
@@ -1098,10 +1065,37 @@ def netiface():
     res = json.dumps(dnetintf.netiface())
     return make_response(res, 200, None, 'application/json')
 
-#http_json_server.register(dnetintf.netiface_from_dst_address, CMD_R)
-#http_json_server.register(dnetintf.netiface_from_src_address, CMD_R)
-#http_json_server.register(dnetintf.modify_physical_eth_ipv4, CMD_RW)
-#http_json_server.register(dnetintf.replace_virtual_eth_ipv4, CMD_RW)
-#http_json_server.register(dnetintf.modify_eth_ipv4, CMD_RW)
-#http_json_server.register(dnetintf.change_state_eth_ipv4, CMD_RW)
-#http_json_server.register(dnetintf.delete_eth_ipv4, CMD_R)
+@app.route('/netiface_from_dst_address'.format(version=VERSION))
+def netiface_from_dst_address():
+    res = json.dumps(dnetintf.netiface_from_dst_address())
+    return make_response(res, 200, None, 'application/json')
+
+@app.route('/netiface_from_src_address'.format(version=VERSION))
+def netiface_from_src_address():
+    res = json.dumps(dnetintf.netiface_from_src_address())
+    return make_response(res, 200, None, 'application/json')
+
+@app.route('/modify_physical_eth_ipv4'.format(version=VERSION))
+def modify_physical_eth_ipv4():
+    res = json.dumps(dnetintf.modify_physical_eth_ipv4())
+    return make_response(res, 200, None, 'application/json')
+
+@app.route('/replace_virtual_eth_ipv4'.format(version=VERSION))
+def replace_virtual_eth_ipv4():
+    res = json.dumps(dnetintf.replace_virtual_eth_ipv4())
+    return make_response(res, 200, None, 'application/json')
+
+@app.route('/modify_eth_ipv4'.format(version=VERSION))
+def modify_eth_ipv4():
+    res = json.dumps(dnetintf.modify_eth_ipv4())
+    return make_response(res, 200, None, 'application/json')
+
+@app.route('/change_state_eth_ipv4'.format(version=VERSION))
+def change_state_eth_ipv4():
+    res = json.dumps(dnetintf.change_state_eth_ipv4())
+    return make_response(res, 200, None, 'application/json')
+
+@app.route('/delete_eth_ipv4'.format(version=VERSION))
+def delete_eth_ipv4():
+    res = json.dumps(dnetintf.delete_eth_ipv4())
+    return make_response(res, 200, None, 'application/json')
