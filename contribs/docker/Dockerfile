@@ -15,6 +15,7 @@ RUN apt-get -qq -y install \
     git \
     ssh \
     python-dev \
+    libpq-dev \
     libyaml-dev \
     nginx \
     vim \

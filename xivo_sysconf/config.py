@@ -67,7 +67,7 @@ def configure():
                         help="The owner of the process.")
     parser.add_argument("-c",
                         '--config_path',
-                        default="/etc/xivo/",
+                        default="/etc/xivo/xivo-sysconfd/",
                         help="Use configuration file <conffile> instead of %default")
     parser.add_argument("-p",
                         '--pidfile',

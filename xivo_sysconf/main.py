@@ -22,6 +22,7 @@ import os
 from flup.server.fcgi import WSGIServer
 
 from xivo.daemonize import pidfile_context
+from xivo.user_rights import change_user
 from xivo.xivo_logging import setup_logging
 from xivo_sysconf.config import config
 from xivo_sysconf import sysconfd_server
