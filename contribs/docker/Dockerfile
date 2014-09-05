@@ -32,7 +32,7 @@ RUN python setup.py install
 # Configure environment
 RUN touch /var/log/xivo-sysconfd.log
 RUN chown www-data: /var/log/xivo-sysconfd.log
-RUN cp debian/xivo-sysconfd.init /etc/init.d/xivo-sysconfd
+RUN cp debian/init /etc/init.d/xivo-sysconfd
 RUN mkdir -p /etc/xivo/xivo-sysconfd
 RUN mkdir /var/run/xivo-sysconfd
 RUN chown www-data: /var/run/xivo-sysconfd
