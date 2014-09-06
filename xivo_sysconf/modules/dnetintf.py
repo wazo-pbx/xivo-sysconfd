@@ -558,7 +558,7 @@ class DNETIntf:
 
         return self._netiface_from_address(self.netcfg.get_dst)
 
-    def netiface_from_src_address(self, args, options):
+    def netiface_from_src_address(self, ip):
         """
         GET /netiface_from_src_address
 
@@ -566,8 +566,7 @@ class DNETIntf:
         >>> netiface_from_src_address({}, {'address':   {0: '192.168.0.1', 1: '172.16.1.1'}})
         >>> netiface_from_src_address({}, {'address':   ['192.168.0.1', '172.16.1.1']})
         """
-        self.args = args
-        self.options = options
+        self.options = ip
 
         return self._netiface_from_address(self.netcfg.get_src)
 
@@ -653,7 +652,7 @@ class DNETIntf:
                                   !~~seqlen(2,2) ['dns-nameservers', '127.0.0.1 192.168.0.254'] ]
     """)
 
-    def modify_physical_eth_ipv4(self, args, options):
+    def modify_physical_eth_ipv4(self, args, interface):
         """
         POST /modify_physical_eth_ipv4
 
@@ -662,7 +661,7 @@ class DNETIntf:
                                      {'ifname': 'eth0'})
         """
         self.args = args
-        self.options = options
+        self.options = {'ifname': interface}
 
         if not xys.validate(self.args, self.MODIFY_PHYSICAL_ETH_IPV4_SCHEMA):
             raise ("invalid arguments for command")
@@ -1054,34 +1053,36 @@ class DNETIntf:
 
 dnetintf = DNETIntf()
 
-@app.route('/discover_netifaces'.format(version=VERSION))
+@app.route('/discover_netifaces')
 def discover_netifaces():
     res = json.dumps(dnetintf.discover_netifaces())
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/netiface'.format(version=VERSION), methods=['POST'])
+@app.route('/netiface', methods=['POST'])
 def netiface():
     data = json.loads(request.data)
     res = json.dumps(dnetintf.netiface(data))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/netiface_from_dst_address'.format(version=VERSION), methods=['POST'])
+@app.route('/netiface_from_dst_address', methods=['POST'])
 def netiface_from_dst_address():
     data = json.loads(request.data)
     res = json.dumps(dnetintf.netiface_from_dst_address(data))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/netiface_from_src_address'.format(version=VERSION))
+@app.route('/netiface_from_src_address', methods=['POST'])
 def netiface_from_src_address():
-    res = json.dumps(dnetintf.netiface_from_src_address())
+    data = json.loads(request.data)
+    res = json.dumps(dnetintf.netiface_from_src_address(data))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/modify_physical_eth_ipv4'.format(version=VERSION))
-def modify_physical_eth_ipv4():
-    res = json.dumps(dnetintf.modify_physical_eth_ipv4())
+@app.route('/modify_physical_eth_ipv4/<interface>', methods=['POST'])
+def modify_physical_eth_ipv4(interface):
+    data = json.loads(request.data)
+    res = json.dumps(dnetintf.modify_physical_eth_ipv4(data, interface))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/replace_virtual_eth_ipv4'.format(version=VERSION))
+@app.route('/replace_virtual_eth_ipv4')
 def replace_virtual_eth_ipv4():
     res = json.dumps(dnetintf.replace_virtual_eth_ipv4())
     return make_response(res, 200, None, 'application/json')
