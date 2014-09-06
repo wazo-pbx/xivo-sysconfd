@@ -726,7 +726,7 @@ class DNETIntf:
                                       !~~seqlen(2,2) ['dns-nameservers', '127.0.0.1 192.168.0.254'] ]
     """)
 
-    def replace_virtual_eth_ipv4(self, args, options):
+    def replace_virtual_eth_ipv4(self, args, interface):
         """
         POST /replace_virtual_eth_ipv4
 
@@ -736,7 +736,7 @@ class DNETIntf:
                                      {'ifname': 'eth0:0'})
         """
         self.args = args
-        self.options = options
+        self.options = {'ifname': interface}
         phyifname = None
         phyinfo = None
 
@@ -843,7 +843,7 @@ class DNETIntf:
                                   !~~seqlen(2,2) ['dns-nameservers', '127.0.0.1 192.168.0.254'] ]
     """)
 
-    def modify_eth_ipv4(self, args, options):
+    def modify_eth_ipv4(self, args, interface):
         """
         POST /modify_eth_ipv4
 
@@ -859,7 +859,7 @@ class DNETIntf:
                             {'ifname':  'eth0'})
         """
         self.args = args
-        self.options = options
+        self.options = {'ifname': interface}
 
         eth = self._get_valid_eth_ipv4()
 
@@ -935,7 +935,7 @@ class DNETIntf:
     state:  !!bool True
     """)
 
-    def change_state_eth_ipv4(self, args, options):
+    def change_state_eth_ipv4(self, args, interface):
         """
         POST /change_state_eth_ipv4
 
@@ -943,7 +943,7 @@ class DNETIntf:
                                   {'ifname':    'eth0'})
         """
         self.args = args
-        self.options = options
+        self.options = {'ifname': interface}
 
         eth = self._get_valid_eth_ipv4()
 
@@ -995,15 +995,14 @@ class DNETIntf:
             raise e.__class__(str(e))
         return True
 
-    def delete_eth_ipv4(self, args, options):
+    def delete_eth_ipv4(self, interface):
         """
         GET /delete_eth_ipv4
 
         >>> delete_eth_ipv4({},
                             {'ifname':  'eth0'})
         """
-        self.args = args
-        self.options = options
+        self.options = {'ifname': interface}
 
         eth = None
 
@@ -1082,22 +1081,25 @@ def modify_physical_eth_ipv4(interface):
     res = json.dumps(dnetintf.modify_physical_eth_ipv4(data, interface))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/replace_virtual_eth_ipv4')
-def replace_virtual_eth_ipv4():
-    res = json.dumps(dnetintf.replace_virtual_eth_ipv4())
+@app.route('/replace_virtual_eth_ipv4/<interface>', methods=['POST'])
+def replace_virtual_eth_ipv4(interface):
+    data = json.loads(request.data)
+    res = json.dumps(dnetintf.replace_virtual_eth_ipv4(data, interface))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/modify_eth_ipv4'.format(version=VERSION))
-def modify_eth_ipv4():
-    res = json.dumps(dnetintf.modify_eth_ipv4())
+@app.route('/modify_eth_ipv4/<interface>', methods=['POST'])
+def modify_eth_ipv4(interface):
+    data = json.loads(request.data)
+    res = json.dumps(dnetintf.modify_eth_ipv4(data, interface))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/change_state_eth_ipv4'.format(version=VERSION))
-def change_state_eth_ipv4():
-    res = json.dumps(dnetintf.change_state_eth_ipv4())
+@app.route('/change_state_eth_ipv4/<interface>', methods=['POST'])
+def change_state_eth_ipv4(interface):
+    data = json.loads(request.data)
+    res = json.dumps(dnetintf.change_state_eth_ipv4(data, interface))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/delete_eth_ipv4'.format(version=VERSION))
-def delete_eth_ipv4():
-    res = json.dumps(dnetintf.delete_eth_ipv4())
+@app.route('/delete_eth_ipv4/<interface>')
+def delete_eth_ipv4(interface):
+    res = json.dumps(dnetintf.delete_eth_ipv4(interface))
     return make_response(res, 200, None, 'application/json')
