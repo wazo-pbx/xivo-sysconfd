@@ -24,4 +24,4 @@ function check_nginx {
 
 # Launching xivo-sysconfd
 start
-xivo-sysconfd -d -f -u www-data
+xivo-sysconfd -d -f

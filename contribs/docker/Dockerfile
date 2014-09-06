@@ -34,11 +34,9 @@ RUN python setup.py install
 # Configure environment
 RUN touch /etc/network/interfaces
 RUN touch /var/log/xivo-sysconfd.log
-RUN chown www-data: /var/log/xivo-sysconfd.log
 RUN cp debian/init /etc/init.d/xivo-sysconfd
 RUN mkdir -p /etc/xivo/xivo-sysconfd
 RUN mkdir /var/run/xivo-sysconfd
-RUN chown www-data: /var/run/xivo-sysconfd
 RUN cp -a etc/xivo/xivo-sysconfd/xivo-sysconfd.yml /etc/xivo/xivo-sysconfd/
 
 # Configure nginx
@@ -54,6 +52,8 @@ RUN echo "root:xivo" | chpasswd
 
 # Clean
 RUN apt-get clean
+WORKDIR /root
+RUN rm -rf xivo-sysconfd
 
 EXPOSE 8668
 
