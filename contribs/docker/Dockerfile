@@ -18,7 +18,6 @@ RUN apt-get -qq -y install \
     libyaml-dev \
     python-dumbnet \
     python-netifaces \
-    nginx \
     vim \
     curl \
     net-tools
@@ -38,10 +37,6 @@ RUN cp debian/init /etc/init.d/xivo-sysconfd
 RUN mkdir -p /etc/xivo/xivo-sysconfd
 RUN mkdir /var/run/xivo-sysconfd
 RUN cp -a etc/xivo/xivo-sysconfd/xivo-sysconfd.yml /etc/xivo/xivo-sysconfd/
-
-# Configure nginx
-RUN cp etc/nginx/sites-available/xivo-sysconfd /etc/nginx/sites-available/xivo-sysconfd
-RUN ln -s /etc/nginx/sites-available/xivo-sysconfd /etc/nginx/sites-enabled/xivo-sysconfd
 
 # Add script to run services
 ADD xivo-sysconfd-service /root/xivo-sysconfd-service

@@ -1,4 +1,6 @@
 general:
+    listen: 0.0.0.0
+    port: 8668
     xivo_config_path: /etc/xivo
     templates_path: /usr/share/xivo-sysconfd/templates
     custom_templates_path: /etc/xivo/sysconfd/custom-templates

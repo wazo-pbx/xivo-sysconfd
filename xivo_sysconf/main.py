@@ -15,11 +15,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import signal
 import logging
 import os
 
-from flup.server.fcgi import WSGIServer
+from gevent.wsgi import WSGIServer
 
 from xivo.daemonize import pidfile_context
 from xivo.xivo_logging import setup_logging
@@ -34,23 +33,10 @@ def main():
     with pidfile_context(config._PID_FILENAME, config.foreground):
         _run()
 
-
 def _run():
     logger.debug('WSGIServer starting with uid %s', os.getuid())
-    WSGIServer(sysconfd_server.app,
-               bindAddress=config._SOCKET_FILENAME,
-               multithreaded=True,
-               multiprocess=False,
-               debug=config.debug).run()
-
-
-def _init_signal():
-    signal.signal(signal.SIGTERM, _handle_sigterm)
-
-
-def _handle_sigterm(signum, frame):
-    raise SystemExit()
-
+    http_server = WSGIServer((config.general.listen, config.general.port), sysconfd_server.app)
+    http_server.serve_forever()
 
 if __name__ == '__main__':
     main()
