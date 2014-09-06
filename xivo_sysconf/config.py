@@ -61,10 +61,6 @@ def configure():
                         action='store_true',
                         default=False,
                         help="Enable debug messages. Default: %(default)s")
-    parser.add_argument('-u',
-                        '--user',
-                        action='store',
-                        help="The owner of the process.")
     parser.add_argument("-c",
                         '--config_path',
                         default="/etc/xivo/xivo-sysconfd/",
