@@ -26,7 +26,6 @@ import json
 from time import time
 from shutil import copy2
 
-from xivo.http_json_server import HttpReqError
 from xivo import xys
 from xivo import network
 from xivo import interfaces
@@ -36,6 +35,7 @@ from xivo import system
 from xivo_sysconf import helpers
 
 from flask.helpers import make_response
+from flask import request
 from ..sysconfd_server import app, VERSION
 
 log = logging.getLogger('xivo_sysconf.modules.dnetintf')
@@ -369,12 +369,12 @@ class DNETIntf:
             addresses = None
 
         if not addresses:
-            raise HttpReqError(415, "invalid option 'address'")
+            raise ("invalid option 'address'")
         else:
             try:
                 addresses = [dumbnet.addr(x) for x in addresses]
             except ValueError, e:
-                raise HttpReqError(415, "%s: %s" % (e, x))
+                raise ("%s: %s" % (e, x))
 
         return dict((str(address), function(address)) for address in addresses)
 
@@ -523,7 +523,7 @@ class DNETIntf:
 
         return rs
 
-    def netiface(self):
+    def netiface(self, interfaces):
         """
         GET /netiface
 
@@ -533,8 +533,8 @@ class DNETIntf:
         >>> netiface({}, {'ifname': ['eth0', 'eth1']})
         """
 
-        if 'ifname' in self.options:
-            ifaces = helpers.extract_scalar(self.options['ifname'])
+        if 'ifname' in interfaces:
+            ifaces = helpers.extract_scalar(interfaces['ifname'])
             if not ifaces:
                 raise ("invalid option 'ifname'")
         else:
@@ -546,7 +546,7 @@ class DNETIntf:
 
         return dict((iface, self.get_netiface_info(iface)) for iface in ifaces)
 
-    def netiface_from_dst_address(self, args, options):
+    def netiface_from_dst_address(self, ip):
         """
         GET /netiface_from_dst_address
 
@@ -554,8 +554,7 @@ class DNETIntf:
         >>> netiface_from_dst_address({}, {'address':   {0: '192.168.0.1', 1: '172.16.1.1'}})
         >>> netiface_from_dst_address({}, {'address':   ['192.168.0.1', '172.16.1.1']})
         """
-        self.args = args
-        self.options = options
+        self.options = ip
 
         return self._netiface_from_address(self.netcfg.get_dst)
 
@@ -576,21 +575,21 @@ class DNETIntf:
         if 'ifname' in self.options:
             if not isinstance(self.options['ifname'], basestring) \
                     or not xivo_config.netif_managed(self.options['ifname']):
-                raise HttpReqError(415, "invalid interface name, ifname: %r" % self.options['ifname'])
+                raise ("invalid interface name, ifname: %r" % self.options['ifname'])
 
             try:
                 eth = self.get_netiface_info(self.options['ifname'])
             except (OSError, TypeError), e:
-                raise HttpReqError(415, "%s: %r", (e, self.options['ifname']))
+                raise ("%s: %r", (e, self.options['ifname']))
 
             if not eth:
-                raise HttpReqError(404, "interface not found")
+                raise ("interface not found")
             elif eth.get('type') != 'eth':
-                raise HttpReqError(415, "invalid interface type")
+                raise ("invalid interface type")
             elif eth.get('family') != 'inet':
-                raise HttpReqError(415, "invalid address family")
+                raise ("invalid address family")
         else:
-            raise HttpReqError(415, "missing option 'ifname'")
+            raise ("missing option 'ifname'")
 
         return eth
 
@@ -598,13 +597,13 @@ class DNETIntf:
         if 'method' in self.args:
             if self.args['method'] == 'static':
                 if not xivo_config.plausible_static(self.args, None):
-                    raise HttpReqError(415, "invalid static arguments for command")
+                    raise ("invalid static arguments for command")
             elif self.args['method'] == 'dhcp':
                 for x in ('address', 'netmask', 'broadcast', 'gateway', 'mtu'):
                     if x in self.args:
                         del self.args[x]
         else:
-            raise HttpReqError(415, "missing argument 'method'")
+            raise ("missing argument 'method'")
 
     def get_interface_filecontent(self, conf):
         backupfilepath = None
@@ -666,18 +665,18 @@ class DNETIntf:
         self.options = options
 
         if not xys.validate(self.args, self.MODIFY_PHYSICAL_ETH_IPV4_SCHEMA):
-            raise HttpReqError(415, "invalid arguments for command")
+            raise ("invalid arguments for command")
 
         eth = self._get_valid_eth_ipv4()
 
         # allow dummy interfaces
         if not (eth['physicalif'] or eth['dummyif']):
-            raise HttpReqError(415, "invalid interface, it is not a physical interface")
+            raise ("invalid interface, it is not a physical interface")
 
         self.normalize_inet_options()
 
         if not os.access(self.CONFIG['interfaces_path'], (os.X_OK | os.W_OK)):
-            raise HttpReqError(415, "path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path'])
+            raise ("path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path'])
 
         self.args['auto'] = self.args.get('auto', True)
         self.args['family'] = 'inet'
@@ -745,21 +744,21 @@ class DNETIntf:
         if 'ifname' not in self.options \
            or not isinstance(self.options['ifname'], basestring) \
            or not xivo_config.netif_managed(self.options['ifname']):
-            raise HttpReqError(415, "invalid interface name, ifname: %r" % self.options['ifname'])
+            raise ("invalid interface name, ifname: %r" % self.options['ifname'])
         elif not xys.validate(self.args, self.REPLACE_VIRTUAL_ETH_IPV4_SCHEMA):
-            raise HttpReqError(415, "invalid arguments for command")
+            raise ("invalid arguments for command")
 
         info = self.get_netiface_info(self.options['ifname'])
 
         if info and info['physicalif']:
-            raise HttpReqError(415, "invalid interface, it is a physical interface")
+            raise ("invalid interface, it is a physical interface")
         elif network.is_alias_if(self.args['ifname']):
             phyifname = network.phy_name_from_alias_if(self.args['ifname'])
             phyinfo = self.get_netiface_info(phyifname)
             if not phyinfo or True not in (phyinfo['physicalif'], phyinfo['vlanif']):
-                raise HttpReqError(415, "invalid interface, it is not an alias interface")
+                raise ("invalid interface, it is not an alias interface")
             elif self.args['method'] != 'static':
-                raise HttpReqError(415, "invalid method, must be static")
+                raise ("invalid method, must be static")
 
             if 'vlanrawdevice' in self.args:
                 del self.args['vlanrawdevice']
@@ -767,38 +766,38 @@ class DNETIntf:
                 del self.args['vlanid']
         elif network.is_vlan_if(self.args['ifname']):
             if not 'vlanrawdevice' in self.args:
-                raise HttpReqError(415, "invalid arguments for command, missing vlanrawdevice")
+                raise ("invalid arguments for command, missing vlanrawdevice")
             if not 'vlanid' in self.args:
-                raise HttpReqError(415, "invalid arguments for command, missing vlanid")
+                raise ("invalid arguments for command, missing vlanid")
 
             phyifname = self.args['vlanrawdevice']
             phyinfo = self.get_netiface_info(phyifname)
             if not phyinfo or not phyinfo['physicalif']:
-                raise HttpReqError(415, "invalid vlanrawdevice, it is not a physical interface")
+                raise ("invalid vlanrawdevice, it is not a physical interface")
 
             vconfig = network.get_vlan_info_from_ifname(self.args['ifname'])
 
             if 'vlan-id' not in vconfig:
-                raise HttpReqError(415, "invalid vlan interface name")
+                raise ("invalid vlan interface name")
             elif vconfig['vlan-id'] != int(self.args['vlanid']):
-                raise HttpReqError(415, "invalid vlanid")
+                raise ("invalid vlanid")
             elif vconfig.get('vlan-raw-device', self.args['vlanrawdevice']) != self.args['vlanrawdevice']:
-                raise HttpReqError(415, "invalid vlanrawdevice")
+                raise ("invalid vlanrawdevice")
 
             self.args['vlan-id'] = self.args.pop('vlanid')
             self.args['vlan-raw-device'] = self.args.pop('vlanrawdevice')
         else:
-            raise HttpReqError(415, "invalid ifname argument for command")
+            raise ("invalid ifname argument for command")
 
         if phyinfo.get('type') != 'eth':
-            raise HttpReqError(415, "invalid interface type")
+            raise ("invalid interface type")
         elif phyinfo.get('family') != 'inet':
-            raise HttpReqError(415, "invalid address family")
+            raise ("invalid address family")
 
         self.normalize_inet_options()
 
         if not os.access(self.CONFIG['interfaces_path'], (os.X_OK | os.W_OK)):
-            raise HttpReqError(415, "path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path'])
+            raise ("path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path'])
 
         self.args['auto'] = self.args.get('auto', True)
         self.args['family'] = 'inet'
@@ -866,7 +865,7 @@ class DNETIntf:
         eth = self._get_valid_eth_ipv4()
 
         if not xys.validate(self.args, self.MODIFY_ETH_IPV4_SCHEMA):
-            raise HttpReqError(415, "invalid arguments for command")
+            raise ("invalid arguments for command")
 
         if 'up' in self.args:
             if self.args['up']:
@@ -889,9 +888,9 @@ class DNETIntf:
         eth['auto'] = self.args.get('auto', True)
 
         if not xivo_config.plausible_static(eth, None):
-            raise HttpReqError(415, "invalid arguments for command")
+            raise ("invalid arguments for command")
         elif not os.access(self.CONFIG['interfaces_path'], (os.X_OK | os.W_OK)):
-            raise HttpReqError(415, "path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path'])
+            raise ("path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path'])
 
         conf = {'netIfaces': {},
                 'vlans': {},
@@ -950,7 +949,7 @@ class DNETIntf:
         eth = self._get_valid_eth_ipv4()
 
         if not xys.validate(self.args, self.CHANGE_STATE_ETH_SCHEMA):
-            raise HttpReqError(415, "invalid arguments for command")
+            raise ("invalid arguments for command")
 
         conf = {'netIfaces': {},
                 'vlans': {},
@@ -1011,7 +1010,7 @@ class DNETIntf:
 
         try:
             eth = self._get_valid_eth_ipv4()
-        except HttpReqError, e:
+        except e:
             if e.code == 404:
                 pass
 
@@ -1038,13 +1037,13 @@ class DNETIntf:
             if ret:
                 return True
             elif not eth:
-                raise HttpReqError(404, "interface not found")
+                raise ("interface not found")
 
             eth['flags'] &= ~dumbnet.INTF_FLAG_UP
             if 'gateway' in eth:
                 del eth['gateway']
             self.netcfg.set(eth)
-        except HttpReqError, e:
+        except e:
             raise e.__class__(e.code, e.text)
         except Exception, e:
             if netifacesbakfile:
@@ -1060,14 +1059,16 @@ def discover_netifaces():
     res = json.dumps(dnetintf.discover_netifaces())
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/netiface'.format(version=VERSION))
+@app.route('/netiface'.format(version=VERSION), methods=['POST'])
 def netiface():
-    res = json.dumps(dnetintf.netiface())
+    data = json.loads(request.data)
+    res = json.dumps(dnetintf.netiface(data))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/netiface_from_dst_address'.format(version=VERSION))
+@app.route('/netiface_from_dst_address'.format(version=VERSION), methods=['POST'])
 def netiface_from_dst_address():
-    res = json.dumps(dnetintf.netiface_from_dst_address())
+    data = json.loads(request.data)
+    res = json.dumps(dnetintf.netiface_from_dst_address(data))
     return make_response(res, 200, None, 'application/json')
 
 @app.route('/netiface_from_src_address'.format(version=VERSION))
