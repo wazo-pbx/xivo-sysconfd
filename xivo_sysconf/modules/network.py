@@ -21,7 +21,6 @@ from xivo.http_json_server import CMD_R, CMD_RW
 from xivo.moresynchro import RWLock
 from xivo import xivo_config
 from xivo import yaml_json
-from xivo import xys
 from xivo import json_ops
 from xivo import network
 
@@ -45,11 +44,6 @@ def network_config(args):
         NETLOCK.release()
 
 
-REN_ETH_SCHEMA = xys.load("""
-old_name: !~~prefixedDec eth
-new_name: !~~prefixedDec eth
-""")
-
 def rename_ethernet_interface(args):
     """
     POST /rename_ethernet_interface
@@ -58,21 +52,8 @@ def rename_ethernet_interface(args):
     {'old_name': "eth42",
      'new_name': "eth1"}
     """
-    if not xys.validate(args, REN_ETH_SCHEMA):
-        raise HttpReqError(415, "invalid arguments for command")
-    if not NETLOCK.acquire_write(NET_LOCK_TIMEOUT):
-        raise HttpReqError(503, "unable to take NETLOCK for writing after %s seconds" % NET_LOCK_TIMEOUT)
-    try:
-        xivo_config.rename_ethernet_interface(args['old_name'], args['new_name'])
-        return True
-    finally:
-        NETLOCK.release()
-
-
-SWAP_ETH_SCHEMA = xys.load("""
-name1: !~~prefixedDec eth
-name2: !~~prefixedDec eth
-""")
+    xivo_config.rename_ethernet_interface(args['old_name'], args['new_name'])
+    return True
 
 def swap_ethernet_interfaces(args):
     """
@@ -82,16 +63,8 @@ def swap_ethernet_interfaces(args):
     {'name1': "eth0",
      'name2': "eth1"}
     """
-    if not xys.validate(args, SWAP_ETH_SCHEMA):
-        raise HttpReqError(415, "invalid arguments for command")
-    if not NETLOCK.acquire_write(NET_LOCK_TIMEOUT):
-        raise HttpReqError(503, "unable to take NETLOCK for writing after %s seconds" % NET_LOCK_TIMEOUT)
-    try:
-        xivo_config.swap_ethernet_interfaces(args['name1'], args['name2'])
-        return True
-    finally:
-        NETLOCK.release()
-
+    xivo_config.swap_ethernet_interfaces(args['name1'], args['name2'])
+    return True
 
 def _val_modify_network_config(args):
     """

@@ -27,7 +27,6 @@ from xivo.http_json_server import HttpReqError
 from xivo.http_json_server import CMD_RW
 from xivo.moresynchro import RWLock
 from xivo.xivo_config import txtsubst
-from xivo import xys
 from xivo import system
 
 from xivo_sysconf import helpers
@@ -75,12 +74,6 @@ def _write_config_file(optname, xvars):
     return backupfilename
 
 
-HOSTS_SCHEMA = xys.load("""
-hostname:   !~domain_label
-domain:     !~search_domain
-""")
-
-
 def Hosts(args, options):
     """
     POST /hosts
@@ -89,51 +82,40 @@ def Hosts(args, options):
                'domain':    'localdomain'})
     """
 
-    if not xys.validate(args, HOSTS_SCHEMA):
-        raise HttpReqError(415, "invalid arguments for command")
-
     if not os.access(Rcc['hostname_path'], (os.X_OK | os.W_OK)):
         raise HttpReqError(415, "path not found or not writable or not executable: %r" % Rcc['hostname_path'])
 
     if not os.access(Rcc['hosts_path'], (os.X_OK | os.W_OK)):
         raise HttpReqError(415, "path not found or not writable or not executable: %r" % Rcc['hosts_path'])
 
-    if not RESOLVCONFLOCK.acquire_read(Rcc['lock_timeout']):
-        raise HttpReqError(503, "unable to take RESOLVCONFLOCK for reading after %s seconds" % Rcc['lock_timeout'])
-
     hostnamebakfile = None
     hostsbakfile = None
 
     try:
-        try:
-            hostnamebakfile = _write_config_file('hostname',
-                                                 {'_XIVO_HOSTNAME': args['hostname']})
+        hostnamebakfile = _write_config_file('hostname',
+                                             {'_XIVO_HOSTNAME': args['hostname']})
 
-            hostsbakfile = _write_config_file('hosts',
-                                              {'_XIVO_HOSTNAME': args['hostname'],
-                                               '_XIVO_DOMAIN': args['domain']})
+        hostsbakfile = _write_config_file('hosts',
+                                          {'_XIVO_HOSTNAME': args['hostname'],
+                                           '_XIVO_DOMAIN': args['domain']})
 
-            if Rcc['hostname_update_cmd']:
-                subprocess.call(Rcc['hostname_update_cmd'].strip().split())
+        if Rcc['hostname_update_cmd']:
+            subprocess.call(Rcc['hostname_update_cmd'].strip().split())
 
-            return True
-        except Exception, e:
-            if hostnamebakfile:
-                copy2(hostnamebakfile, Rcc['hostname_file'])
-            if hostsbakfile:
-                copy2(hostsbakfile, Rcc['hosts_file'])
-            raise e.__class__(str(e))
-    finally:
-        RESOLVCONFLOCK.release()
-
-
-RESOLVCONF_SCHEMA = xys.load("""
-nameservers:    !~~seqlen(1,3) [ !~ipv4_address_or_domain 192.168.0.254 ]
-search?:        !~~seqlen(1,6) [ !~search_domain example.com ]
-""")
+        return True
+    except Exception, e:
+        if hostnamebakfile:
+            copy2(hostnamebakfile, Rcc['hostname_file'])
+        if hostsbakfile:
+            copy2(hostsbakfile, Rcc['hosts_file'])
+        raise e.__class__(str(e))
 
 
 def _resolv_conf_variables(args):
+    """
+    nameservers:    !~~seqlen(1,3) [ !~ipv4_address_or_domain 192.168.0.254 ]
+    search?:        !~~seqlen(1,6) [ !~search_domain example.com ]
+    """
     xvars = {}
     xvars['_XIVO_NAMESERVER_LIST'] = \
         os.linesep.join(["nameserver %s"] * len(args['nameservers'])) % tuple(args['nameservers'])
@@ -177,9 +159,6 @@ def ResolvConf(args, options):
         if len(''.join(args['search'])) > 255:
             raise HttpReqError(415, "maximum length exceeded for option search: %r" % list(args['search']))
 
-    if not xys.validate(args, RESOLVCONF_SCHEMA):
-        raise HttpReqError(415, "invalid arguments for command")
-
     if not os.access(Rcc['resolvconf_path'], (os.X_OK | os.W_OK)):
         raise HttpReqError(415, "path not found or not writable or not executable: %r" % Rcc['resolvconf_path'])
 
@@ -189,16 +168,13 @@ def ResolvConf(args, options):
     resolvconfbakfile = None
 
     try:
-        try:
-            resolvconfbakfile = _write_config_file('resolvconf',
-                                                   _resolv_conf_variables(args))
-            return True
-        except Exception, e:
-            if resolvconfbakfile:
-                copy2(resolvconfbakfile, Rcc['resolvconf_file'])
-            raise e.__class__(str(e))
-    finally:
-        RESOLVCONFLOCK.release()
+        resolvconfbakfile = _write_config_file('resolvconf',
+                                               _resolv_conf_variables(args))
+        return True
+    except Exception, e:
+        if resolvconfbakfile:
+            copy2(resolvconfbakfile, Rcc['resolvconf_file'])
+        raise e.__class__(str(e))
 
 
 def safe_init(options):

@@ -26,7 +26,6 @@ import json
 from time import time
 from shutil import copy2
 
-from xivo import xys
 from xivo import network
 from xivo import interfaces
 from xivo import xivo_config
@@ -767,18 +766,6 @@ class DNETIntf:
             raise e.__class__(str(e))
         return True
 
-    MODIFY_ETH_IPV4_SCHEMA = xys.load("""
-    address:    !~ipv4_address 192.168.0.1
-    netmask:    !~netmask 255.255.255.0
-    broadcast?: !~ipv4_address 192.168.0.255
-    gateway?:   !~ipv4_address 192.168.0.254
-    mtu?:       !~~between(68,1500) 1500
-    auto?:      !!bool True
-    up?:        !!bool True
-    options?:   !~~seqlen(0,64) [ !~~seqlen(2,2) ['dns-search', 'toto.tld tutu.tld'],
-                                  !~~seqlen(2,2) ['dns-nameservers', '127.0.0.1 192.168.0.254'] ]
-    """)
-
     def modify_eth_ipv4(self, args, interface):
         """
         POST /modify_eth_ipv4
@@ -793,14 +780,21 @@ class DNETIntf:
                              'options':     [['dns-search', 'toto.tld tutu.tld'],
                                              ['dns-nameservers', '127.0.0.1 192.168.0.254']]},
                             {'ifname':  'eth0'})
+
+        address:   !~ipv4_address 192.168.0.1
+        netmask:   !~netmask 255.255.255.0
+        broadcast: !~ipv4_address 192.168.0.255
+        gateway:   !~ipv4_address 192.168.0.254
+        mtu:       !~~between(68,1500) 1500
+        auto:      !!bool True
+        up:        !!bool True
+        options:   !~~seqlen(0,64) [ !~~seqlen(2,2) ['dns-search', 'toto.tld tutu.tld'],
+                                  !~~seqlen(2,2) ['dns-nameservers', '127.0.0.1 192.168.0.254'] ]
         """
         self.args = args
         self.options = {'ifname': interface}
 
         eth = self._get_valid_eth_ipv4()
-
-        if not xys.validate(self.args, self.MODIFY_ETH_IPV4_SCHEMA):
-            raise ("invalid arguments for command")
 
         if 'up' in self.args:
             if self.args['up']:
@@ -867,24 +861,18 @@ class DNETIntf:
             raise e.__class__(str(e))
         return True
 
-    CHANGE_STATE_ETH_SCHEMA = xys.load("""
-    state:  !!bool True
-    """)
-
     def change_state_eth_ipv4(self, args, interface):
         """
         POST /change_state_eth_ipv4
 
         >>> change_state_eth_ipv4({'state': True},
                                   {'ifname':    'eth0'})
+        state:  !!bool True
         """
         self.args = args
         self.options = {'ifname': interface}
 
         eth = self._get_valid_eth_ipv4()
-
-        if not xys.validate(self.args, self.CHANGE_STATE_ETH_SCHEMA):
-            raise ("invalid arguments for command")
 
         conf = {'netIfaces': {},
                 'vlans': {},
