@@ -238,21 +238,6 @@ class NetworkConfig(dumbnet.intf):
         """
         return self._intf_repr(dumbnet.intf.get(self, name))
 
-    def get_dst(self, dst):
-        """
-        Return the configuration for the best interface with which to
-        reach the specified dst address.
-        """
-        self.__realloc__()  # XXX: Workarround
-        return self._intf_repr(dumbnet.intf.get_dst(self, dst))
-
-    def get_src(self, src):
-        """
-        Return the configuration for the interface whose primary address
-        matches the specified source address.
-        """
-        return self._intf_repr(dumbnet.intf.get_src(self, src))
-
     def set(self, d, name=None):
         """
         Set the configuration for an interface from a dict like interfaces(5).
@@ -766,7 +751,7 @@ class DNETIntf:
             raise e.__class__(str(e))
         return True
 
-    def modify_eth_ipv4(self, args, interface):
+    def modify_eth_ipv4(self, args):
         """
         POST /modify_eth_ipv4
 
@@ -779,7 +764,7 @@ class DNETIntf:
                              'up':          True,
                              'options':     [['dns-search', 'toto.tld tutu.tld'],
                                              ['dns-nameservers', '127.0.0.1 192.168.0.254']]},
-                            {'ifname':  'eth0'})
+                             'ifname':  'eth0'})
 
         address:   !~ipv4_address 192.168.0.1
         netmask:   !~netmask 255.255.255.0
@@ -792,9 +777,9 @@ class DNETIntf:
                                   !~~seqlen(2,2) ['dns-nameservers', '127.0.0.1 192.168.0.254'] ]
         """
         self.args = args
-        self.options = {'ifname': interface}
+        interface = args['ifname']
 
-        eth = self._get_valid_eth_ipv4()
+        eth = self._get_valid_eth_ipv4(interface)
 
         if 'up' in self.args:
             if self.args['up']:
@@ -861,7 +846,7 @@ class DNETIntf:
             raise e.__class__(str(e))
         return True
 
-    def change_state_eth_ipv4(self, args, interface):
+    def change_state_eth_ipv4(self, args):
         """
         POST /change_state_eth_ipv4
 
@@ -870,9 +855,9 @@ class DNETIntf:
         state:  !!bool True
         """
         self.args = args
-        self.options = {'ifname': interface}
+        interface = args['ifname']
 
-        eth = self._get_valid_eth_ipv4()
+        eth = self._get_valid_eth_ipv4(interface)
 
         conf = {'netIfaces': {},
                 'vlans': {},
@@ -926,12 +911,10 @@ class DNETIntf:
         >>> delete_eth_ipv4({},
                             {'ifname':  'eth0'})
         """
-        self.options = {'ifname': interface}
-
         eth = None
 
         try:
-            eth = self._get_valid_eth_ipv4()
+            eth = self._get_valid_eth_ipv4(interface)
         except e:
             if e.code == 404:
                 pass
