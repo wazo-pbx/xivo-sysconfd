@@ -359,25 +359,6 @@ class DNETIntf:
         self.args = {}
         self.options = {}
 
-    def _netiface_from_address(self, function):
-        """
-        Find best interface from destination or source address.
-        """
-        if 'address' in self.options:
-            addresses = helpers.extract_scalar(self.options['address'])
-        else:
-            addresses = None
-
-        if not addresses:
-            raise ("invalid option 'address'")
-        else:
-            try:
-                addresses = [dumbnet.addr(x) for x in addresses]
-            except ValueError, e:
-                raise ("%s: %s" % (e, x))
-
-        return dict((str(address), function(address)) for address in addresses)
-
     def get_netiface_info(self, iface):
         try:
             info = self.netcfg.get(iface)
@@ -523,63 +504,28 @@ class DNETIntf:
 
         return rs
 
-    def netiface(self, interfaces):
+    def netiface(self, interface):
         """
-        GET /netiface
+        GET /netiface/<interface>
 
-        >>> netiface({}, {})
-        >>> netiface({}, {'ifname': 'eth0'})
-        >>> netiface({}, {'ifname': {0: 'eth0', 1: 'eth1'}})
-        >>> netiface({}, {'ifname': ['eth0', 'eth1']})
+        >>> netiface('eth0')
         """
-
-        if 'ifname' in interfaces:
-            ifaces = helpers.extract_scalar(interfaces['ifname'])
-            if not ifaces:
-                raise ("invalid option 'ifname'")
-        else:
-            return self.discover_netifaces()
 
         self.inetxparser.reloadfile()
-        if len(ifaces) == 1:
-            return self.get_netiface_info(ifaces[0])
+        res = self.get_netiface_info(interface)
+        if res == False:
+            res = {'Message': 'No interface'}
+        return res
 
-        return dict((iface, self.get_netiface_info(iface)) for iface in ifaces)
-
-    def netiface_from_dst_address(self, ip):
-        """
-        GET /netiface_from_dst_address
-
-        >>> netiface_from_dst_address({}, {'address':   '192.168.0.1'})
-        >>> netiface_from_dst_address({}, {'address':   {0: '192.168.0.1', 1: '172.16.1.1'}})
-        >>> netiface_from_dst_address({}, {'address':   ['192.168.0.1', '172.16.1.1']})
-        """
-        self.options = ip
-
-        return self._netiface_from_address(self.netcfg.get_dst)
-
-    def netiface_from_src_address(self, ip):
-        """
-        GET /netiface_from_src_address
-
-        >>> netiface_from_src_address({}, {'address':   '192.168.0.1'})
-        >>> netiface_from_src_address({}, {'address':   {0: '192.168.0.1', 1: '172.16.1.1'}})
-        >>> netiface_from_src_address({}, {'address':   ['192.168.0.1', '172.16.1.1']})
-        """
-        self.options = ip
-
-        return self._netiface_from_address(self.netcfg.get_src)
-
-    def _get_valid_eth_ipv4(self):
-        if 'ifname' in self.options:
-            if not isinstance(self.options['ifname'], basestring) \
-                    or not xivo_config.netif_managed(self.options['ifname']):
-                raise ("invalid interface name, ifname: %r" % self.options['ifname'])
+    def _get_valid_eth_ipv4(self, interface):
+        if not isinstance(interface, basestring) \
+            or not xivo_config.netif_managed(interface):
+            raise ("invalid interface name, ifname: %r" % interface)
 
             try:
-                eth = self.get_netiface_info(self.options['ifname'])
+                eth = self.get_netiface_info(interface)
             except (OSError, TypeError), e:
-                raise ("%s: %r", (e, self.options['ifname']))
+                raise ("%s: %r", (e, interface))
 
             if not eth:
                 raise ("interface not found")
@@ -639,34 +585,30 @@ class DNETIntf:
 
         return (filecontent, backupfilepath)
 
-    MODIFY_PHYSICAL_ETH_IPV4_SCHEMA = xys.load("""
-    method:     !~~enum(static,dhcp)
-    address?:   !~ipv4_address 192.168.0.1
-    netmask?:   !~netmask 255.255.255.0
-    broadcast?: !~ipv4_address 192.168.0.255
-    gateway?:   !~ipv4_address 192.168.0.254
-    mtu?:       !~~between(68,1500) 1500
-    auto?:      !!bool True
-    up?:        !!bool True
-    options?:   !~~seqlen(0,64) [ !~~seqlen(2,2) ['dns-search', 'toto.tld tutu.tld'],
-                                  !~~seqlen(2,2) ['dns-nameservers', '127.0.0.1 192.168.0.254'] ]
-    """)
-
-    def modify_physical_eth_ipv4(self, args, interface):
+    def modify_physical_eth_ipv4(self, args):
         """
         POST /modify_physical_eth_ipv4
 
-        >>> modify_physical_eth_ipv4({'method': 'dhcp',
-                                      'auto':   True},
-                                     {'ifname': 'eth0'})
+        >>> modify_physical_eth_ipv4({'ifname': 'eth0',
+                                      'method': 'dhcp',
+                                      'auto':   True,
+                                     })
+
+        method:    !~~enum(static,dhcp)
+        address:   !~ipv4_address 192.168.0.1
+        netmask:   !~netmask 255.255.255.0
+        broadcast: !~ipv4_address 192.168.0.255
+        gateway:   !~ipv4_address 192.168.0.254
+        mtu:       !~~between(68,1500) 1500
+        auto:      !!bool True
+        up:        !!bool True
+        options:   !~~seqlen(0,64) [ !~~seqlen(2,2) ['dns-search', 'toto.tld tutu.tld'],
+                                     !~~seqlen(2,2) ['dns-nameservers', '127.0.0.1 192.168.0.254'] ]
         """
         self.args = args
-        self.options = {'ifname': interface}
+        interface = args['ifname']
 
-        if not xys.validate(self.args, self.MODIFY_PHYSICAL_ETH_IPV4_SCHEMA):
-            raise ("invalid arguments for command")
-
-        eth = self._get_valid_eth_ipv4()
+        eth = self._get_valid_eth_ipv4(interface)
 
         # allow dummy interfaces
         if not (eth['physicalif'] or eth['dummyif']):
@@ -709,45 +651,39 @@ class DNETIntf:
             raise e.__class__(str(e))
         return True
       
-
-    REPLACE_VIRTUAL_ETH_IPV4_SCHEMA = xys.load("""
-    ifname:         !!str vlan42
-    method:         !~~enum(static,dhcp,manual)
-    vlanid?:        !~~between(0,65535) 42
-    vlanrawdevice?: !!str eth0
-    address?:       !~ipv4_address 172.16.42.1
-    netmask?:       !~netmask 255.255.255.0
-    broadcast?:     !~ipv4_address 172.16.42.255
-    gateway?:       !~ipv4_address 172.16.42.254
-    mtu?:           !~~between(68,1500) 1500
-    auto?:          !!bool True
-    up?:            !!bool True
-    options?:       !~~seqlen(0,64) [ !~~seqlen(2,2) ['dns-search', 'toto.tld tutu.tld'],
-                                      !~~seqlen(2,2) ['dns-nameservers', '127.0.0.1 192.168.0.254'] ]
-    """)
-
     def replace_virtual_eth_ipv4(self, args, interface):
         """
         POST /replace_virtual_eth_ipv4
 
         >>> replace_virtual_eth_ipv4({'ifname': 'eth0:0',
                                       'method': 'dhcp',
-                                      'auto':   True},
-                                     {'ifname': 'eth0:0'})
+                                      'auto':   True,
+                                      'new_ifname': 'eth0:0'
+                                     })
+        ifname:        !!str vlan42
+        method:        !~~enum(static,dhcp,manual)
+        vlanid:        !~~between(0,65535) 42
+        vlanrawdevice: !!str eth0
+        address:       !~ipv4_address 172.16.42.1
+        netmask:       !~netmask 255.255.255.0
+        broadcast:     !~ipv4_address 172.16.42.255
+        gateway:       !~ipv4_address 172.16.42.254
+        mtu:           !~~between(68,1500) 1500
+        auto:          !!bool True
+        up:            !!bool True
+        options:       !~~seqlen(0,64) [ !~~seqlen(2,2) ['dns-search', 'toto.tld tutu.tld'],
+                                         !~~seqlen(2,2) ['dns-nameservers', '127.0.0.1 192.168.0.254'] ]
         """
         self.args = args
-        self.options = {'ifname': interface}
         phyifname = None
         phyinfo = None
+        interface = args['ifname']
 
-        if 'ifname' not in self.options \
-           or not isinstance(self.options['ifname'], basestring) \
-           or not xivo_config.netif_managed(self.options['ifname']):
-            raise ("invalid interface name, ifname: %r" % self.options['ifname'])
-        elif not xys.validate(self.args, self.REPLACE_VIRTUAL_ETH_IPV4_SCHEMA):
-            raise ("invalid arguments for command")
+        if not isinstance(interface, basestring) \
+            or not xivo_config.netif_managed(interface):
+            raise ("invalid interface name, ifname: %r" % interface)
 
-        info = self.get_netiface_info(self.options['ifname'])
+        info = self.get_netiface_info(interface)
 
         if info and info['physicalif']:
             raise ("invalid interface, it is a physical interface")
@@ -1057,46 +993,33 @@ def discover_netifaces():
     res = json.dumps(dnetintf.discover_netifaces())
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/netiface', methods=['POST'])
-def netiface():
-    data = json.loads(request.data)
-    res = json.dumps(dnetintf.netiface(data))
+@app.route('/netiface/<interface>')
+def netiface(interface):
+    res = json.dumps(dnetintf.netiface(interface))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/netiface_from_dst_address', methods=['POST'])
-def netiface_from_dst_address():
+@app.route('/modify_physical_eth_ipv4', methods=['PUT'])
+def modify_physical_eth_ipv4():
     data = json.loads(request.data)
-    res = json.dumps(dnetintf.netiface_from_dst_address(data))
+    res = json.dumps(dnetintf.modify_physical_eth_ipv4(data))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/netiface_from_src_address', methods=['POST'])
-def netiface_from_src_address():
+@app.route('/replace_virtual_eth_ipv4', methods=['PUT'])
+def replace_virtual_eth_ipv4():
     data = json.loads(request.data)
-    res = json.dumps(dnetintf.netiface_from_src_address(data))
+    res = json.dumps(dnetintf.replace_virtual_eth_ipv4(data))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/modify_physical_eth_ipv4/<interface>', methods=['POST'])
-def modify_physical_eth_ipv4(interface):
+@app.route('/modify_eth_ipv4', methods=['PUT'])
+def modify_eth_ipv4():
     data = json.loads(request.data)
-    res = json.dumps(dnetintf.modify_physical_eth_ipv4(data, interface))
+    res = json.dumps(dnetintf.modify_eth_ipv4(data))
     return make_response(res, 200, None, 'application/json')
 
-@app.route('/replace_virtual_eth_ipv4/<interface>', methods=['POST'])
-def replace_virtual_eth_ipv4(interface):
+@app.route('/change_state_eth_ipv4', methods=['PUT'])
+def change_state_eth_ipv4():
     data = json.loads(request.data)
-    res = json.dumps(dnetintf.replace_virtual_eth_ipv4(data, interface))
-    return make_response(res, 200, None, 'application/json')
-
-@app.route('/modify_eth_ipv4/<interface>', methods=['POST'])
-def modify_eth_ipv4(interface):
-    data = json.loads(request.data)
-    res = json.dumps(dnetintf.modify_eth_ipv4(data, interface))
-    return make_response(res, 200, None, 'application/json')
-
-@app.route('/change_state_eth_ipv4/<interface>', methods=['POST'])
-def change_state_eth_ipv4(interface):
-    data = json.loads(request.data)
-    res = json.dumps(dnetintf.change_state_eth_ipv4(data, interface))
+    res = json.dumps(dnetintf.change_state_eth_ipv4(data))
     return make_response(res, 200, None, 'application/json')
 
 @app.route('/delete_eth_ipv4/<interface>')
