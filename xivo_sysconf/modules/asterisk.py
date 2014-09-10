@@ -18,33 +18,31 @@
 import os.path
 import shutil
 
-from xivo import http_json_server
-from xivo.http_json_server import HttpReqError
-from xivo.http_json_server import CMD_R
+from flask.helpers import make_response
+from ..sysconfd_server import app, VERSION
 
+logger = logging.getLogger('xivo_sysconf.modules.delete_voicemail')
 
 class Asterisk(object):
     def __init__(self, base_vmail_path='/var/spool/asterisk/voicemail'):
         self._base_vmail_path = base_vmail_path
 
-    def delete_voicemail(self, args, options):
+    def delete_voicemail(self, context, mailbox):
         """Delete spool dir associated with voicemail
 
             options:
-                name    : voicemail name
+                mailbox    : voicemail name
                 context : voicemail context (opt. default is 'default')
         """
-        if 'name' not in options:
-            raise HttpReqError(400, "missing 'name' arg", json=True)
-        context = options.get('context', 'default')
-
-        vmpath = os.path.join(self._base_vmail_path, context, options['name'])
+        vmpath = os.path.join(self._base_vmail_path, context, mailbox)
         if os.path.exists(vmpath):
             shutil.rmtree(vmpath)
 
         return True
 
-
 asterisk = Asterisk()
-http_json_server.register(asterisk.delete_voicemail, CMD_R,
-                          name='delete_voicemail')
+
+@app.route('/delete_voicemail/<context>/<mailbox>', methods=['DELETE'])
+def delete_voicemail(context, mailbox):
+    res = json.dumps(asterisk.delete_voicemail(context, mailbox))
+    return make_response(res, 200, None, 'application/json')
