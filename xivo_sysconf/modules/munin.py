@@ -16,43 +16,41 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 import logging, subprocess
+import json
 
-from xivo import http_json_server
-from xivo.http_json_server import CMD_R
-
+from flask.helpers import make_response
+from ..sysconfd_server import app
 
 class Munin(object):
     def __init__(self):
         super(Munin, self).__init__()
         self.log = logging.getLogger('xivo_sysconf.modules.munin')
 
-        http_json_server.register(self.update , CMD_R,
-            safe_init=self.safe_init,
-            name='munin_update')
-
         self.cmd1 = ['/usr/sbin/xivo-monitoring-update']
         self.cmd2 = ['/usr/bin/munin-cron', '--force-root']
 
-    def safe_init(self, options):
-        pass
-
-    def update(self, args, options):
+    def update(self):
         try:
             p = subprocess.Popen(self.cmd1, close_fds=True)
             ret = p.wait()
         except Exception:
             self.log.debug("can't execute '%s'" % self.cmd1)
-            raise http_json_server.HttpReqError(500, "can't execute '%s'" % self.cmd1)
+            raise ("can't execute '%s'" % self.cmd1)
         if ret != 0:
-            raise http_json_server.HttpReqError(500, "'%s' process return error %d" % (self.cmd1, ret))
+            raise ("'%s' process return error %d" % (self.cmd1, ret))
 
         try:
             p = subprocess.Popen(self.cmd2, close_fds=True)
         except Exception:
             self.log.debug("can't execute '%s'" % self.cmd2)
-            raise http_json_server.HttpReqError(500, "can't execute '%s'" % self.cmd2[0])
+            raise ("can't execute '%s'" % self.cmd2[0])
 
 
         return True
 
 munin = Munin()
+
+@app.route('/munin_update')
+def munin_update():
+    res = json.dumps(munin.update())
+    return make_response(res, 200, None, 'application/json')
