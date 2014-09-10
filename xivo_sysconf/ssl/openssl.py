@@ -21,47 +21,26 @@ import random
 import shutil
 import magic
 from M2Crypto import RSA, X509, m2, EVP, ASN1
-from xivo import http_json_server
-from xivo.http_json_server import HttpReqError
-from xivo.http_json_server import CMD_RW, CMD_R
-
-CIPHERS = {
-    'aes': 'aes_128_cbc',
-    'des': 'des_ede_cbc',
-    'des3': 'des_ede3_cbc',
-    'idea': 'idea_cbc'
-}
-
-DEFAULT_CIPHER = CIPHERS['aes']
-
-# certificates/keys magic headers
-MAGIC = {
-    '-----BEGIN CERTIFICATE-----\n': 'certificate',
-    '-----BEGIN RSA PRIVATE KEY-----\n': 'privkey',
-    '-----BEGIN DSA PRIVATE KEY-----\n': 'privkey',
-    '-----BEGIN PUBLIC KEY-----\n': 'pubkey',
-    '-----BEGIN CERTIFICATE REQUEST-----\n': 'request',
-}
 
 
 class OpenSSL(object):
-    def __init__(self):
-        super(OpenSSL, self).__init__()
-        http_json_server.register(self.listCertificates, CMD_R,
-                                  name='openssl_listcertificates', safe_init=self.safe_init)
-        http_json_server.register(self.getCertificateInfos, CMD_R,
-                                  name='openssl_certificateinfos')
-        http_json_server.register(self.getPubKey, CMD_R,
-                                  name='openssl_exportpubkey')
-        http_json_server.register(self.export, CMD_R,
-                                  name='openssl_export')
-        http_json_server.register(self.createSSLCACertificate, CMD_RW,
-                                  name='openssl_createcacertificate')
-        http_json_server.register(self.createSSLCertificate, CMD_RW,
-                                  name='openssl_createcertificate')
-        http_json_server.register(self.deleteCertificate, CMD_R, name='openssl_deletecertificate')
-        http_json_server.register(self._import, CMD_RW,
-                                  name='openssl_import')
+    CIPHERS = {
+        'aes': 'aes_128_cbc',
+        'des': 'des_ede_cbc',
+        'des3': 'des_ede3_cbc',
+        'idea': 'idea_cbc'
+    }
+
+    DEFAULT_CIPHER = CIPHERS['aes']
+
+    # certificates/keys magic headers
+    MAGIC = {
+        '-----BEGIN CERTIFICATE-----\n': 'certificate',
+        '-----BEGIN RSA PRIVATE KEY-----\n': 'privkey',
+        '-----BEGIN DSA PRIVATE KEY-----\n': 'privkey',
+        '-----BEGIN PUBLIC KEY-----\n': 'pubkey',
+        '-----BEGIN CERTIFICATE REQUEST-----\n': 'request',
+    }
 
     def safe_init(self, options):
         self.certsdir = options.configuration.get('openssl', 'certsdir')
@@ -76,7 +55,7 @@ class OpenSSL(object):
         abs_file_path = os.path.abspath(rel_file_path)
 
         if not abs_file_path.startswith(self.certsdir):
-            raise HttpReqError(404, "file not valid", json=True)
+            raise ("file not valid")
 
         return abs_file_path
 
@@ -172,7 +151,7 @@ class OpenSSL(object):
                         }
         """
         if not os.path.exists(os.path.join(self.certsdir, options['name'])):
-            raise HttpReqError(404, "%s certificate not found" % options['name'], json=True)
+            raise ("%s certificate not found" % options['name'])
 
         cert = X509.load_cert(os.path.join(self.certsdir, options['name']))
         infos = {
@@ -217,7 +196,7 @@ class OpenSSL(object):
                     -----END PUBLIC KEY-----
         """
         if not os.path.exists(self._pubfile(options['name'])):
-            raise HttpReqError(404, "%s pubkey not found" % options['name'], json=True)
+            raise ("%s pubkey not found" % options['name'])
 
         with open(self._pubfile(options['name'])) as f:
             pubkey = f.read()
@@ -231,12 +210,12 @@ class OpenSSL(object):
                       . filename
         """
         if 'name' not in options:
-            raise HttpReqError(400, "missing 'name' option", json=True)
+            raise ("missing 'name' option")
 
         abs_file_path = self._get_abs_path_file(options['name'])
 
         if not os.path.exists(abs_file_path):
-            raise HttpReqError(404, "file not found", json=True)
+            raise ("file not found")
 
         with open(abs_file_path, 'r') as f:
             content = f.read()
@@ -396,9 +375,9 @@ class OpenSSL(object):
                     }, {})
         """
         if 'name' not in args:
-            raise HttpReqError(400, "missing 'name' option", json=True)
+            raise ("missing 'name' option")
         elif os.path.exists(os.path.join(self.certsdir, args['name'] + '.key')):
-            raise HttpReqError(409, "a certificat with this name is already found    (%s, json=True)" % os.path.join(self.certsdir, args['name'] + '.key'))
+            raise ("a certificat with this name is already found (%s)" % os.path.join(self.certsdir, args['name'] + '.key'))
 
         # Create private key
         pkey = self._makekey(args['name'], args.get('password', ''), int(args.get('length', 1024)))
@@ -463,16 +442,16 @@ class OpenSSL(object):
                     }, {})
         """
         if 'name' not in args:
-            raise HttpReqError(400, "missing 'name' option", json=True)
+            raise ("missing 'name' option")
         elif os.path.exists(os.path.join(self.certsdir, str(args['name']) + '.key')):
-            raise HttpReqError(409, "a certificat with this name is already found", json=True)
+            raise ("a certificat with this name is already found")
 
         autosigned = int(args.get('autosigned', 0))
         if autosigned == 0:
             if 'ca' not in args:
-                raise HttpReqError(400, "missing 'ca' option", json=True)
+                raise ("missing 'ca' option")
             elif not os.path.exists(os.path.join(self.certsdir, str(args['ca']) + '.key')):
-                raise HttpReqError(409, "CA certificate key not found", json=True)
+                raise ("CA certificate key not found")
 
             # loading CA private key
         # NOTE: RSA fail to read password (with "bad password read message") if we
@@ -485,7 +464,7 @@ class OpenSSL(object):
             try:
                 _cakey = RSA.load_key(os.path.join(self.certsdir, args['ca'] + '.key'), _getpass)
             except RSA.RSAError:
-                raise HttpReqError(403, "invalid CA password", json=True)
+                raise ("invalid CA password")
             cakey = EVP.PKey()
             cakey.assign_rsa(_cakey)
 
@@ -520,9 +499,9 @@ class OpenSSL(object):
         """
         """
         if 'name' not in options:
-            raise HttpReqError(400, "missing 'name' option", json=True)
+            raise ("missing 'name' option")
         elif not os.path.exists(os.path.join(self.certsdir, options['name'])):
-            raise HttpReqError(404, "'%s' certificat not found" % options['name'], json=True)
+            raise ("'%s' certificat not found" % options['name'])
 
         os.remove(os.path.join(self.certsdir, options['name']))
 
@@ -536,11 +515,11 @@ class OpenSSL(object):
 
     def _import(self, args, options):
         if 'name' not in args:
-            raise HttpReqError(400, "missing 'name' arg", json=True)
+            raise ("missing 'name' arg")
         elif 'content' not in args:
-            raise HttpReqError(400, "missing 'content' arg", json=True)
+            raise ("missing 'content' arg")
         elif os.path.exists(os.path.join(self.certsdir, args['name'])):
-            raise HttpReqError(500, "a certificate named '%s' already exists" % args['name'], json=True)
+            raise ("a certificate named '%s' already exists" % args['name'])
 
         types = []
         for g, n in MAGIC.iteritems():
@@ -548,7 +527,7 @@ class OpenSSL(object):
                 types.append(n)
 
         if len(types) == 0:
-            raise HttpReqError(500, "'%s' is not a valid SSL certificat or key" % args['name'], json=True)
+            raise ("'%s' is not a valid SSL certificat or key" % args['name'])
 
         with open(os.path.join(self.certsdir, args['name']), 'w') as f:
             f.write(args['content'])
@@ -561,6 +540,3 @@ class OpenSSL(object):
                 os.symlink(os.path.join(self.certsdir, args['name']), os.path.join('/var/lib/asterisk/keys', args['name'] + ('' if args['name'].endswith('.key') else '.key')))
 
         return True
-
-
-openssl = OpenSSL()

@@ -18,6 +18,8 @@ RUN apt-get -qq -y install \
     libyaml-dev \
     python-dumbnet \
     python-netifaces \
+    python-magic \
+    python-m2crypto \
     ifupdown \
     sudo \
     vim \

@@ -12,6 +12,7 @@ setup(
     url='http://xivo.io/',
     packages=['xivo_sysconf',
               'xivo_sysconf.network',
+              'xivo_sysconf.ssl',
               'xivo_sysconf.modules'],
     scripts=['bin/xivo-sysconfd']
 )
