@@ -22,4 +22,4 @@ app = Flask(__name__)
 session = requests.Session()
 VERSION = 0.1
 
-from xivo_sysconf.modules import check, network
+from xivo_sysconf.modules import check, network, services
