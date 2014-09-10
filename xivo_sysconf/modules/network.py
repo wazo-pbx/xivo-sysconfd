@@ -15,126 +15,71 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-from xivo import http_json_server
-from xivo.http_json_server import HttpReqError
-from xivo.http_json_server import CMD_R, CMD_RW
-from xivo.moresynchro import RWLock
-from xivo import xivo_config
-from xivo import yaml_json
-from xivo import json_ops
-from xivo import network
+import json
+from xivo_sysconf.config import config
+from xivo_sysconf.network.dnetintf import DNETIntf
 
+from flask.helpers import make_response
+from flask import request
+from ..sysconfd_server import app, VERSION
 
-NET_LOCK_TIMEOUT = 60 # XXX
-NETLOCK = RWLock()
+net = DNETIntf()
 
+@app.route('/discover_netifaces')
+def discover_netifaces():
+    res = json.dumps(net.discover_netifaces())
+    return make_response(res, 200, None, 'application/json')
 
-def network_config(args):
-    """
-    GET /network_config
+@app.route('/netiface/<interface>')
+def netiface(interface):
+    res = json.dumps(net.netiface(interface))
+    return make_response(res, 200, None, 'application/json')
 
-    Just returns the network configuration
-    """
-    if not NETLOCK.acquire_read(NET_LOCK_TIMEOUT):
-        raise HttpReqError(503, "unable to take NETLOCK for reading after %s seconds" % NET_LOCK_TIMEOUT)
-    try:
-        netconf = xivo_config.load_current_configuration()
-        return yaml_json.stringify_keys(netconf)
-    finally:
-        NETLOCK.release()
+@app.route('/modify_physical_eth_ipv4', methods=['PUT'])
+def modify_physical_eth_ipv4():
+    data = json.loads(request.data)
+    res = json.dumps(net.modify_physical_eth_ipv4(data))
+    return make_response(res, 200, None, 'application/json')
 
+@app.route('/replace_virtual_eth_ipv4', methods=['PUT'])
+def replace_virtual_eth_ipv4():
+    data = json.loads(request.data)
+    res = json.dumps(net.replace_virtual_eth_ipv4(data))
+    return make_response(res, 200, None, 'application/json')
 
-def rename_ethernet_interface(args):
-    """
-    POST /rename_ethernet_interface
+@app.route('/modify_eth_ipv4', methods=['PUT'])
+def modify_eth_ipv4():
+    data = json.loads(request.data)
+    res = json.dumps(net.modify_eth_ipv4(data))
+    return make_response(res, 200, None, 'application/json')
 
-    args ex:
-    {'old_name': "eth42",
-     'new_name': "eth1"}
-    """
-    xivo_config.rename_ethernet_interface(args['old_name'], args['new_name'])
-    return True
+@app.route('/change_state_eth_ipv4', methods=['PUT'])
+def change_state_eth_ipv4():
+    data = json.loads(request.data)
+    res = json.dumps(net.change_state_eth_ipv4(data))
+    return make_response(res, 200, None, 'application/json')
 
-def swap_ethernet_interfaces(args):
-    """
-    POST /swap_ethernet_interfaces
+@app.route('/delete_eth_ipv4/<interface>')
+def delete_eth_ipv4(interface):
+    res = json.dumps(net.delete_eth_ipv4(interface))
+    return make_response(res, 200, None, 'application/json')
 
-    args ex:
-    {'name1': "eth0",
-     'name2': "eth1"}
-    """
-    xivo_config.swap_ethernet_interfaces(args['name1'], args['name2'])
-    return True
+@app.route('/network_config')
+def network_config():
+    res = json.dumps(net.network_config())
+    return make_response(res, 200, None, 'application/json')
 
-def _val_modify_network_config(args):
-    """
-    ad hoc validation function for modify_network_config command
-    """
-    if set(args) != set(['rel', 'old', 'chg']):
-        return False
-    if not isinstance(args['rel'], list):
-        return False
-    for elt in args['rel']:
-        if not isinstance(elt, basestring):
-            return False
-    return True
+@app.route('/rename_ethernet_interface', methods=['PUT'])
+def rename_ethernet_interface(interface):
+    res = json.dumps(net.rename_ethernet_interface(interface))
+    return make_response(res, 200, None, 'application/json')
 
+@app.route('/swap_ethernet_interfaces', methods=['PUT'])
+def swap_ethernet_interfaces(interface):
+    res = json.dumps(net.swap_ethernet_interfaces(interface))
+    return make_response(res, 200, None, 'application/json')
 
-def modify_network_config(args):
-    """
-    POST /modify_network_config
-    """
-    if not _val_modify_network_config(args):
-        raise HttpReqError(415, "invalid arguments for command")
-    try:
-        check_conf = json_ops.compile_conj(args['rel'])
-    except ValueError:
-        raise HttpReqError(415, "invalid relation")
-
-    if not NETLOCK.acquire_write(NET_LOCK_TIMEOUT):
-        raise HttpReqError(503, "unable to take NETLOCK for writing after %s seconds" % NET_LOCK_TIMEOUT)
-    try:
-        current_config = xivo_config.load_current_configuration()
-        if not check_conf(args['old'], current_config):
-            raise HttpReqError(409, "Conflict between state wanted by client and current state")
-
-    finally:
-        NETLOCK.release()
-
-def routes(args, options):
-    ret = True
-    """
-        auto eth0
-        iface eth0 inet static
-            address 192.168.32.242
-            netmask 255.255.255.0
-            gateway 192.168.32.254
-            up ip route add 192.168.30.0/24 via 192.168.32.124 || true
-    """
-    args.sort(lambda x, y: cmp(x['iface'], y['iface']))
-    iface = None
-
-    network.route_flush()
-
-    for route in args:
-        if route['disable']:
-            continue
-
-        if route['iface'] != iface:
-            iface = route['iface']
-
-        try:
-            (eid, output) = network.route_set(route['destination'], route['netmask'], route['gateway'], iface)
-            if eid != 0 and route['current']:
-                ret = False
-        except Exception, e:
-            raise HttpReqError(500, 'Cannot apply route')
-
-    network.route_flush_cache()
-    return ret
-
-
-http_json_server.register(network_config, CMD_R)
-http_json_server.register(rename_ethernet_interface, CMD_RW)
-http_json_server.register(swap_ethernet_interfaces, CMD_RW)
-http_json_server.register(routes, CMD_RW)
+@app.route('/routes', methods=['PUT'])
+def routes(interface):
+    res = json.dumps(net.routes(interface))
+    return make_response(res, 200, None, 'application/json')

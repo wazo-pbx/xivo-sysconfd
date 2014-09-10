@@ -11,6 +11,7 @@ setup(
     author_email='technique@proformatique.com',
     url='http://xivo.io/',
     packages=['xivo_sysconf',
+              'xivo_sysconf.network',
               'xivo_sysconf.modules'],
     scripts=['bin/xivo-sysconfd']
 )

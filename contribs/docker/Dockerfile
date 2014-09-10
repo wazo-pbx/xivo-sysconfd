@@ -18,6 +18,8 @@ RUN apt-get -qq -y install \
     libyaml-dev \
     python-dumbnet \
     python-netifaces \
+    ifupdown \
+    sudo \
     vim \
     curl \
     net-tools

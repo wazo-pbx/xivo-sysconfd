@@ -21,7 +21,6 @@ import re
 import dumbnet
 import netifaces
 import subprocess
-import json
 
 from time import time
 from shutil import copy2
@@ -30,15 +29,12 @@ from xivo import network
 from xivo import interfaces
 from xivo import xivo_config
 from xivo import system
+from xivo import yaml_json
 
 from xivo_sysconf import helpers
-
-from flask.helpers import make_response
-from flask import request
-from ..sysconfd_server import app, VERSION
+from xivo_sysconf.config import config
 
 log = logging.getLogger('xivo_sysconf.modules.dnetintf')
-
 
 class InetxParser:
     MATCH_SINGLEARG = re.compile('^\s*([^\s]+)\s+([^\s#]+)').match
@@ -329,12 +325,26 @@ class DNETIntf:
     Network Interfaces class.
     """
 
-    CONFIG = {'interfaces_file': os.path.join(os.path.sep, 'etc', 'network', 'interfaces'),
-              'interfaces_tpl_file': os.path.join('network', 'interfaces'),
+    interfaces_file = os.path.join(os.path.sep, 'etc', 'network', 'interfaces')
+    interfaces_path = os.path.dirname(config.network.interfaces_file)
+    interfaces_tpl_file = os.path.join('network', 'interfaces')
+    interfaces_custom_tpl_file = os.path.join(config.general.custom_templates_path, interfaces_tpl_file)
+
+    CONFIG = {'interfaces_file': interfaces_file,
+              'interfaces_tpl_file': interfaces_file,
               'netiface_up_cmd': "sudo /sbin/ifup",
               'netiface_down_cmd': "sudo /sbin/ifdown",
               'netiface_ip_delete_cmd': "sudo /bin/ip link delete",
-              'lock_timeout': 60}
+              'lock_timeout': 60,
+              'interfaces_path': interfaces_path,
+              'backup_path': config.general.backup_path,
+              'xivo_config_path': config.general.xivo_config_path,
+              'templates_path': config.general.templates_path,
+              'custom_templates_path': config.general.custom_templates_path,
+              'interfaces_backup_file': os.path.join(config.general.backup_path, config.network.interfaces_file.lstrip(os.path.sep)),
+              'interfaces_backup_path': os.path.join(config.general.backup_path, interfaces_path.lstrip(os.path.sep)),
+              'interfaces_custom_tpl_file' : interfaces_custom_tpl_file
+              }
 
     def __init__(self):
         self.netcfg = NetworkConfig()
@@ -446,33 +456,6 @@ class DNETIntf:
 
         return info
 
-    def safe_init(self, options):
-        """Load parameters, etc"""
-        cfg = options.configuration
-
-        tpl_path = cfg.get('general', 'templates_path')
-        custom_tpl_path = cfg.get('general', 'custom_templates_path')
-        backup_path = cfg.get('general', 'backup_path')
-
-        if cfg.has_section('network'):
-            for x in self.CONFIG.iterkeys():
-                if cfg.has_option('network', x):
-                    self.CONFIG[x] = cfg.get('network', x)
-
-        self.CONFIG['lock_timeout'] = float(self.CONFIG['lock_timeout'])
-
-        self.CONFIG['interfaces_tpl_file'] = os.path.join(tpl_path,
-                                                          self.CONFIG['interfaces_tpl_file'])
-
-        self.CONFIG['interfaces_custom_tpl_file'] = os.path.join(custom_tpl_path,
-                                                                 self.CONFIG['interfaces_tpl_file'])
-
-        self.CONFIG['interfaces_path'] = os.path.dirname(self.CONFIG['interfaces_file'])
-        self.CONFIG['interfaces_backup_file'] = os.path.join(backup_path,
-                                                             self.CONFIG['interfaces_file'].lstrip(os.path.sep))
-        self.CONFIG['interfaces_backup_path'] = os.path.join(backup_path,
-                                                             self.CONFIG['interfaces_path'].lstrip(os.path.sep))
-
     def discover_netifaces(self):
         """
         GET /discover_netifaces
@@ -496,15 +479,15 @@ class DNETIntf:
         """
 
         self.inetxparser.reloadfile()
+        print netifaces.ifaddresses(interface)
+
         res = self.get_netiface_info(interface)
         if res == False:
             res = {'Message': 'No interface'}
         return res
 
     def _get_valid_eth_ipv4(self, interface):
-        if not isinstance(interface, basestring) \
-            or not xivo_config.netif_managed(interface):
-            raise ("invalid interface name, ifname: %r" % interface)
+        if xivo_config.netif_managed(interface):
 
             try:
                 eth = self.get_netiface_info(interface)
@@ -512,13 +495,13 @@ class DNETIntf:
                 raise ("%s: %r", (e, interface))
 
             if not eth:
-                raise ("interface not found")
+                return ({"Message" : "interface not found"})
             elif eth.get('type') != 'eth':
-                raise ("invalid interface type")
+                return ({"Message": "invalid interface type"})
             elif eth.get('family') != 'inet':
-                raise ("invalid address family")
+                return ({"Message" : "invalid address family"})
         else:
-            raise ("missing option 'ifname'")
+            return ({"Message": "This interface is not managed by XiVO"})
 
         return eth
 
@@ -526,13 +509,13 @@ class DNETIntf:
         if 'method' in self.args:
             if self.args['method'] == 'static':
                 if not xivo_config.plausible_static(self.args, None):
-                    raise ("invalid static arguments for command")
+                    return ({"Message": "invalid static arguments for command"})
             elif self.args['method'] == 'dhcp':
                 for x in ('address', 'netmask', 'broadcast', 'gateway', 'mtu'):
                     if x in self.args:
                         del self.args[x]
         else:
-            raise ("missing argument 'method'")
+            return ({"Message": "missing argument 'method'"})
 
     def get_interface_filecontent(self, conf):
         backupfilepath = None
@@ -596,12 +579,14 @@ class DNETIntf:
 
         # allow dummy interfaces
         if not (eth['physicalif'] or eth['dummyif']):
-            raise ("invalid interface, it is not a physical interface")
+            return ({"Message": "invalid interface, it is not a physical interface"})
 
         self.normalize_inet_options()
 
-        if not os.access(self.CONFIG['interfaces_path'], (os.X_OK | os.W_OK)):
-            raise ("path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path'])
+        interfaces_path = os.path.dirname(config.network.interfaces_file)
+
+        if not os.access(interfaces_path, (os.X_OK | os.W_OK)):
+            return ({"Message": "path not found or not writable or not executable: %r" % interfaces_path})
 
         self.args['auto'] = self.args.get('auto', True)
         self.args['family'] = 'inet'
@@ -625,17 +610,17 @@ class DNETIntf:
         filecontent, netifacesbakfile = self.get_interface_filecontent(conf)
 
         try:
-            system.file_writelines_flush_sync(self.CONFIG['interfaces_file'], filecontent)
+            system.file_writelines_flush_sync(config.network.interfaces_file, filecontent)
 
             if self.args.get('up', True) and self.CONFIG['netiface_up_cmd']:
                 subprocess.call(self.CONFIG['netiface_up_cmd'].strip().split() + [eth['name']])
         except Exception, e:
             if netifacesbakfile:
-                copy2(netifacesbakfile, self.CONFIG['interfaces_file'])
+                copy2(netifacesbakfile, config.network.interfaces_file)
             raise e.__class__(str(e))
         return True
       
-    def replace_virtual_eth_ipv4(self, args, interface):
+    def replace_virtual_eth_ipv4(self, args):
         """
         POST /replace_virtual_eth_ipv4
 
@@ -665,19 +650,19 @@ class DNETIntf:
 
         if not isinstance(interface, basestring) \
             or not xivo_config.netif_managed(interface):
-            raise ("invalid interface name, ifname: %r" % interface)
+            return ({"Message": "invalid interface name, ifname: %r" % interface})
 
         info = self.get_netiface_info(interface)
 
         if info and info['physicalif']:
-            raise ("invalid interface, it is a physical interface")
+            return ({"Message": "invalid interface, it is a physical interface"})
         elif network.is_alias_if(self.args['ifname']):
             phyifname = network.phy_name_from_alias_if(self.args['ifname'])
             phyinfo = self.get_netiface_info(phyifname)
             if not phyinfo or True not in (phyinfo['physicalif'], phyinfo['vlanif']):
-                raise ("invalid interface, it is not an alias interface")
+                return ({"Message": "invalid interface, it is not an alias interface"})
             elif self.args['method'] != 'static':
-                raise ("invalid method, must be static")
+                return ({"Message": "invalid method, must be static"})
 
             if 'vlanrawdevice' in self.args:
                 del self.args['vlanrawdevice']
@@ -685,38 +670,38 @@ class DNETIntf:
                 del self.args['vlanid']
         elif network.is_vlan_if(self.args['ifname']):
             if not 'vlanrawdevice' in self.args:
-                raise ("invalid arguments for command, missing vlanrawdevice")
+                return ({"Message": "invalid arguments for command, missing vlanrawdevice"})
             if not 'vlanid' in self.args:
-                raise ("invalid arguments for command, missing vlanid")
+                return ({"Message": "invalid arguments for command, missing vlanid"})
 
             phyifname = self.args['vlanrawdevice']
             phyinfo = self.get_netiface_info(phyifname)
             if not phyinfo or not phyinfo['physicalif']:
-                raise ("invalid vlanrawdevice, it is not a physical interface")
+                return ({"Message": "invalid vlanrawdevice, it is not a physical interface"})
 
             vconfig = network.get_vlan_info_from_ifname(self.args['ifname'])
 
             if 'vlan-id' not in vconfig:
-                raise ("invalid vlan interface name")
+                return ({"Message": "invalid vlan interface name"})
             elif vconfig['vlan-id'] != int(self.args['vlanid']):
-                raise ("invalid vlanid")
+                return ({"Message": "invalid vlanid"})
             elif vconfig.get('vlan-raw-device', self.args['vlanrawdevice']) != self.args['vlanrawdevice']:
-                raise ("invalid vlanrawdevice")
+                return ({"Message": "invalid vlanrawdevice"})
 
             self.args['vlan-id'] = self.args.pop('vlanid')
             self.args['vlan-raw-device'] = self.args.pop('vlanrawdevice')
         else:
-            raise ("invalid ifname argument for command")
+            return ({"Message": "invalid ifname argument for command"})
 
         if phyinfo.get('type') != 'eth':
-            raise ("invalid interface type")
+            return ({"Message": "invalid interface type"})
         elif phyinfo.get('family') != 'inet':
-            raise ("invalid address family")
+            return ({"Message": "invalid address family"})
 
         self.normalize_inet_options()
 
         if not os.access(self.CONFIG['interfaces_path'], (os.X_OK | os.W_OK)):
-            raise ("path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path'])
+            return ({"Message": "path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path']})
 
         self.args['auto'] = self.args.get('auto', True)
         self.args['family'] = 'inet'
@@ -778,6 +763,7 @@ class DNETIntf:
         """
         self.args = args
         interface = args['ifname']
+        interfaces_path = os.path.dirname(config.network.interfaces_file)
 
         eth = self._get_valid_eth_ipv4(interface)
 
@@ -802,9 +788,9 @@ class DNETIntf:
         eth['auto'] = self.args.get('auto', True)
 
         if not xivo_config.plausible_static(eth, None):
-            raise ("invalid arguments for command")
-        elif not os.access(self.CONFIG['interfaces_path'], (os.X_OK | os.W_OK)):
-            raise ("path not found or not writable or not executable: %r" % self.CONFIG['interfaces_path'])
+            return ({"Message": "invalid arguments for command"})
+        elif not os.access(interfaces_path, (os.X_OK | os.W_OK)):
+            return ({"Message": "path not found or not writable or not executable: %r" % interfaces_path})
 
         conf = {'netIfaces': {},
                 'vlans': {},
@@ -942,7 +928,7 @@ class DNETIntf:
             if ret:
                 return True
             elif not eth:
-                raise ("interface not found")
+                return ({"Message": "interface not found"})
 
             eth['flags'] &= ~dumbnet.INTF_FLAG_UP
             if 'gateway' in eth:
@@ -956,44 +942,94 @@ class DNETIntf:
             raise e.__class__(str(e))
         return True
 
+    def network_config(self):
+        """
+        GET /network_config
 
-dnetintf = DNETIntf()
+        Just returns the network configuration
+        """
+        netconf = xivo_config.load_current_configuration()
+        return yaml_json.stringify_keys(netconf)
 
-@app.route('/discover_netifaces')
-def discover_netifaces():
-    res = json.dumps(dnetintf.discover_netifaces())
-    return make_response(res, 200, None, 'application/json')
+    def rename_ethernet_interface(self, args):
+        """
+        PUT /rename_ethernet_interface
 
-@app.route('/netiface/<interface>')
-def netiface(interface):
-    res = json.dumps(dnetintf.netiface(interface))
-    return make_response(res, 200, None, 'application/json')
+        args ex:
+        {'old_name': "eth42",
+         'new_name': "eth1"}
+        """
+        xivo_config.rename_ethernet_interface(args['old_name'], args['new_name'])
+        return True
 
-@app.route('/modify_physical_eth_ipv4', methods=['PUT'])
-def modify_physical_eth_ipv4():
-    data = json.loads(request.data)
-    res = json.dumps(dnetintf.modify_physical_eth_ipv4(data))
-    return make_response(res, 200, None, 'application/json')
+    def swap_ethernet_interfaces(self, args):
+        """
+        POST /swap_ethernet_interfaces
 
-@app.route('/replace_virtual_eth_ipv4', methods=['PUT'])
-def replace_virtual_eth_ipv4():
-    data = json.loads(request.data)
-    res = json.dumps(dnetintf.replace_virtual_eth_ipv4(data))
-    return make_response(res, 200, None, 'application/json')
+        args ex:
+        {'name1': "eth0",
+         'name2': "eth1"}
+        """
+        xivo_config.swap_ethernet_interfaces(args['name1'], args['name2'])
+        return True
 
-@app.route('/modify_eth_ipv4', methods=['PUT'])
-def modify_eth_ipv4():
-    data = json.loads(request.data)
-    res = json.dumps(dnetintf.modify_eth_ipv4(data))
-    return make_response(res, 200, None, 'application/json')
+    def _val_modify_network_config(self, args):
+        """
+        ad hoc validation function for modify_network_config command
+        """
+        if set(args) != set(['rel', 'old', 'chg']):
+            return False
+        if not isinstance(args['rel'], list):
+            return False
+        for elt in args['rel']:
+            if not isinstance(elt, basestring):
+                return False
+        return True
 
-@app.route('/change_state_eth_ipv4', methods=['PUT'])
-def change_state_eth_ipv4():
-    data = json.loads(request.data)
-    res = json.dumps(dnetintf.change_state_eth_ipv4(data))
-    return make_response(res, 200, None, 'application/json')
 
-@app.route('/delete_eth_ipv4/<interface>')
-def delete_eth_ipv4(interface):
-    res = json.dumps(dnetintf.delete_eth_ipv4(interface))
-    return make_response(res, 200, None, 'application/json')
+    def modify_network_config(self, args):
+        """
+        PUT /modify_network_config
+        """
+        if not _val_modify_network_config(args):
+            raise ("invalid arguments for command")
+        try:
+            check_conf = json_ops.compile_conj(args['rel'])
+        except ValueError:
+            raise ("invalid relation")
+
+        current_config = xivo_config.load_current_configuration()
+        if not check_conf(args['old'], current_config):
+            raise ("Conflict between state wanted by client and current state")
+
+    def routes(self, args):
+        """
+        auto eth0
+        iface eth0 inet static
+            address 192.168.32.242
+            netmask 255.255.255.0
+            gateway 192.168.32.254
+            up ip route add 192.168.30.0/24 via 192.168.32.124 || true
+        """
+        ret = True
+        args.sort(lambda x, y: cmp(x['iface'], y['iface']))
+        iface = None
+
+        network.route_flush()
+
+        for route in args:
+            if route['disable']:
+                continue
+
+            if route['iface'] != iface:
+                iface = route['iface']
+
+            try:
+                (eid, output) = network.route_set(route['destination'], route['netmask'], route['gateway'], iface)
+                if eid != 0 and route['current']:
+                    ret = False
+            except Exception, e:
+                raise ('Cannot apply route')
+
+        network.route_flush_cache()
+        return ret
