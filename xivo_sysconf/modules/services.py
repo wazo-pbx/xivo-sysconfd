@@ -18,10 +18,10 @@
 import logging
 import os
 import subprocess
+import json
 
-from xivo import http_json_server
-from xivo.http_json_server import HttpReqError
-from xivo.http_json_server import CMD_RW
+from flask.helpers import make_response
+from ..sysconfd_server import app
 
 logger = logging.getLogger('xivo_sysconf.modules.services')
 SERVICE_DIR = '/etc/init.d'
@@ -40,15 +40,13 @@ class InvalidServiceException(ValueError):
         self.service_name = service_name
 
 
-def services(args, options):
+def services(service, action):
     """
-    POST /services
+    GET /services
 
     >>> services({'networking': 'restart'})
     """
-    output = ''
-    for service, action in args.iteritems():
-        output += _run_action_for_service(service, action)
+    output = _run_action_for_service(service, action)
 
     return output
 
@@ -89,12 +87,15 @@ def _run_action_for_service_validated(service, action):
         logger.debug("%s : return code %d", ' '.join(command), p.returncode)
 
         if p.returncode != 0:
-            raise HttpReqError(500, output)
+            raise (output)
     except OSError:
         logger.exception("Error while executing /etc/init.d script")
-        raise HttpReqError(500, "can't manage services")
+        raise ("can't manage services")
 
     return output
 
 
-http_json_server.register(services, CMD_RW, name='services')
+@app.route('/services/<service>/<action>')
+def services(service, action):
+    res = json.dumps(services(service, action))
+    return make_response(res, 200, None, 'application/json')
