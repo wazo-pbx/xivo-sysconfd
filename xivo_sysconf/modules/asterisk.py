@@ -17,6 +17,7 @@
 
 import os.path
 import shutil
+import json
 
 from flask.helpers import make_response
 from ..sysconfd_server import app, VERSION

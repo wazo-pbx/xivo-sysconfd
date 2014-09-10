@@ -16,12 +16,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 import subprocess
-from xivo.http_json_server import register, CMD_R, HttpReqError
+import json
+
+from flask.helpers import make_response
+from ..sysconfd_server import app
 
 DHCPD_UDPATE_COMMAND = ['dhcpd-update', '-dr']
 
 
-def dhcpd_update(args, options):
+def dhcpd_update():
     """Download the latest ISC dhcp server configuration files and
     regenerate the affected configuration files via the dhcpd-update
     command.
@@ -30,12 +33,15 @@ def dhcpd_update(args, options):
     try:
         returncode = subprocess.call(DHCPD_UDPATE_COMMAND, close_fds=True)
     except OSError, e:
-        raise HttpReqError(500, "error while executing dhcpd-update command", e)
+        raise ("error while executing dhcpd-update command", e)
     else:
         if returncode:
-            raise HttpReqError(500, "dhcpd-update command returned %s" % returncode)
+            raise ("dhcpd-update command returned %s" % returncode)
         else:
             return True
 
 
-register(dhcpd_update, CMD_R, name='dhcpd_update')
+@app.route('/dhcpd_update')
+def dhcp_update():
+    res = json.dumps(dhcpd_update())
+    return make_response(res, 200, None, 'application/json')
