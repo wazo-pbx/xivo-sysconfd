@@ -22,28 +22,28 @@ import shutil
 import magic
 from M2Crypto import RSA, X509, m2, EVP, ASN1
 
+CIPHERS = {
+    'aes': 'aes_128_cbc',
+    'des': 'des_ede_cbc',
+    'des3': 'des_ede3_cbc',
+    'idea': 'idea_cbc'
+}
+
+DEFAULT_CIPHER = CIPHERS['aes']
+
+# certificates/keys magic headers
+MAGIC = {
+    '-----BEGIN CERTIFICATE-----\n': 'certificate',
+    '-----BEGIN RSA PRIVATE KEY-----\n': 'privkey',
+    '-----BEGIN DSA PRIVATE KEY-----\n': 'privkey',
+    '-----BEGIN PUBLIC KEY-----\n': 'pubkey',
+    '-----BEGIN CERTIFICATE REQUEST-----\n': 'request',
+}
 
 class OpenSSL(object):
-    CIPHERS = {
-        'aes': 'aes_128_cbc',
-        'des': 'des_ede_cbc',
-        'des3': 'des_ede3_cbc',
-        'idea': 'idea_cbc'
-    }
 
-    DEFAULT_CIPHER = CIPHERS['aes']
-
-    # certificates/keys magic headers
-    MAGIC = {
-        '-----BEGIN CERTIFICATE-----\n': 'certificate',
-        '-----BEGIN RSA PRIVATE KEY-----\n': 'privkey',
-        '-----BEGIN DSA PRIVATE KEY-----\n': 'privkey',
-        '-----BEGIN PUBLIC KEY-----\n': 'pubkey',
-        '-----BEGIN CERTIFICATE REQUEST-----\n': 'request',
-    }
-
-    def safe_init(self, options):
-        self.certsdir = options.configuration.get('openssl', 'certsdir')
+    def __init__(self, config):
+        self.certsdir = config.openssl.certsdir
         if not os.path.exists(self.certsdir):
             os.makedirs(self.certsdir)
 
@@ -75,7 +75,7 @@ class OpenSSL(object):
         """pub key"""
         return self._get_abs_path_file(name + '.pub')
 
-    def listCertificates(self, args, options):
+    def listCertificates(self):
         """Return list of available certificates & keys
         """
         certs = []
@@ -112,7 +112,7 @@ class OpenSSL(object):
 
         return certs
 
-    def getCertificateInfos(self, args, options):
+    def getCertificateInfos(self, filename):
         """Return informations about a certificate
 
                     args:
@@ -150,10 +150,10 @@ class OpenSSL(object):
                             'extensions'     : {}
                         }
         """
-        if not os.path.exists(os.path.join(self.certsdir, options['name'])):
-            raise ("%s certificate not found" % options['name'])
+        if not os.path.exists(os.path.join(self.certsdir, filename)):
+            raise ("%s certificate not found" % filename)
 
-        cert = X509.load_cert(os.path.join(self.certsdir, options['name']))
+        cert = X509.load_cert(os.path.join(self.certsdir, filename))
         infos = {
             'sn': cert.get_serial_number(),
             'CA': cert.check_ca() == 1,
@@ -162,7 +162,7 @@ class OpenSSL(object):
             'fingerprint': 'md5:' + cert.get_fingerprint(),
             'validity-start': cert.get_not_before().get_datetime().strftime("%Y/%m/%d %H:%M:%S %Z"),
             'validity-end': cert.get_not_after().get_datetime().strftime("%Y/%m/%d %H:%M:%S %Z"),
-            'path': self._pemfile(options['name'])
+            'path': self._pemfile(filename)
         }
 
         infos['subject'] = dict([(k, v) for (k, v) in [nid.split('=') for nid in
@@ -178,7 +178,7 @@ class OpenSSL(object):
 
         return infos
 
-    def getPubKey(self, args, options):
+    def getPubKey(self, filename):
         """Export certificate public key
 
                     args:
@@ -195,24 +195,21 @@ class OpenSSL(object):
                     Drz539XmIqqVxSOfVwIDAQAB
                     -----END PUBLIC KEY-----
         """
-        if not os.path.exists(self._pubfile(options['name'])):
-            raise ("%s pubkey not found" % options['name'])
+        if not os.path.exists(self._pubfile(filename)):
+            raise ("%s pubkey not found" % filename)
 
-        with open(self._pubfile(options['name'])) as f:
+        with open(self._pubfile(filename)) as f:
             pubkey = f.read()
 
         return pubkey
 
-    def export(self, args, options):
+    def export(self, filename):
         """Export certificate, private key or public key
 
                 args:
                       . filename
         """
-        if 'name' not in options:
-            raise ("missing 'name' option")
-
-        abs_file_path = self._get_abs_path_file(options['name'])
+        abs_file_path = self._get_abs_path_file(filename)
 
         if not os.path.exists(abs_file_path):
             raise ("file not found")
@@ -321,7 +318,7 @@ class OpenSSL(object):
         cert.set_not_before(t)
 
         t = ASN1.ASN1_UTCTIME()
-        t.set_time(long(time.time() + 60 * 60 * 24 * validity))
+        t.set_time(long(time.time() + 60 * 60 * 24 * int(validity)))
         cert.set_not_after(t)
 
         cert.set_pubkey(request.get_pubkey())
@@ -336,7 +333,7 @@ class OpenSSL(object):
 
         return cert
 
-    def createSSLCACertificate(self, args, options):
+    def createSSLCACertificate(self, args):
         """Create a CA certificate.
 
                     args (* == required):
@@ -372,7 +369,7 @@ class OpenSSL(object):
                         'O'            : 'Proformatique',
                         'OU'           : 'R&D',
                         'emailAddress' : 'xivo-users@lists.proformatique.com',
-                    }, {})
+                    })
         """
         if 'name' not in args:
             raise ("missing 'name' option")
@@ -399,7 +396,7 @@ class OpenSSL(object):
 
         return True
 
-    def createSSLCertificate(self, args, options):
+    def createSSLCertificate(self, args):
         """
                     args keys (* == required):
                       * name        (str)  : certificate name. MUST be unique
@@ -439,7 +436,7 @@ class OpenSSL(object):
                         'O'            : 'Proformatique',
                         'OU'           : 'R&D',
                         'emailAddress' : 'gbour@proformatique.com',
-                    }, {})
+                    })
         """
         if 'name' not in args:
             raise ("missing 'name' option")
@@ -495,25 +492,24 @@ class OpenSSL(object):
 
         return True
 
-    def deleteCertificate(self, args, options):
+    def deleteCertificate(self, certificate):
         """
         """
-        if 'name' not in options:
-            raise ("missing 'name' option")
-        elif not os.path.exists(os.path.join(self.certsdir, options['name'])):
-            raise ("'%s' certificat not found" % options['name'])
+        certificate = os.path.join(certificate, '.pem')
+        if not os.path.exists(os.path.join(self.certsdir, certificate)):
+            raise ("'%s' certificat not found" % certificate)
 
-        os.remove(os.path.join(self.certsdir, options['name']))
+        os.remove(os.path.join(self.certsdir, certificate))
 
         #  deleting symlinks if exists
-        for name in (options['name'], options['name'] + '.pub', options['name'] + '.key'):
+        for name in (certificate, certificate + '.pub', certificate + '.key'):
             path = os.path.join('/var/lib/asterisk/keys', name)
-            if os.path.lexists(path) and os.path.islink(path) and os.readlink(path) == os.path.join(self.certsdir, options['name']):
+            if os.path.lexists(path) and os.path.islink(path) and os.readlink(path) == os.path.join(self.certsdir, certificate):
                 os.remove(path)
 
         return True
 
-    def _import(self, args, options):
+    def _import(self, args):
         if 'name' not in args:
             raise ("missing 'name' arg")
         elif 'content' not in args:

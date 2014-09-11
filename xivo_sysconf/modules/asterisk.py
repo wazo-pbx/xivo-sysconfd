@@ -18,9 +18,10 @@
 import os.path
 import shutil
 import json
+import logging
 
 from flask.helpers import make_response
-from ..sysconfd_server import app, VERSION
+from ..sysconfd_server import app
 
 logger = logging.getLogger('xivo_sysconf.modules.delete_voicemail')
 

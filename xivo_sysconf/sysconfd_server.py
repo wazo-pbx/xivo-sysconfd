@@ -16,10 +16,19 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 import requests
-from flask import Flask, request
+from flask import Flask
 
 app = Flask(__name__)
 session = requests.Session()
-VERSION = 0.1
 
-from xivo_sysconf.modules import check, network, services, ssl
+from xivo_sysconf.modules import check, \
+                                 network, \
+                                 services, \
+                                 ssl, \
+                                 asterisk, \
+                                 dhcpd_update, \
+                                 ha, \
+                                 munin, \
+                                 resolvconf, \
+                                 xivoctl, \
+                                 commonconf

@@ -21,7 +21,7 @@ from xivo_sysconf.network.dnetintf import DNETIntf
 
 from flask.helpers import make_response
 from flask import request
-from ..sysconfd_server import app, VERSION
+from ..sysconfd_server import app
 
 net = DNETIntf()
 
