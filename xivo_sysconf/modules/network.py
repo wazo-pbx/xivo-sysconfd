@@ -18,12 +18,15 @@
 import json
 from xivo_sysconf.config import config
 from xivo_sysconf.network.dnetintf import DNETIntf
+from xivo_sysconf.network.dnetintf import ResolvConf
+from xivo_sysconf.config import config
 
 from flask.helpers import make_response
 from flask import request
 from ..sysconfd_server import app
 
 net = DNETIntf()
+dns = ResolvConf(config)
 
 @app.route('/discover_netifaces')
 def discover_netifaces():
@@ -83,3 +86,14 @@ def swap_ethernet_interfaces(interface):
 def routes(interface):
     res = json.dumps(net.routes(interface))
     return make_response(res, 200, None, 'application/json')
+
+@app.route('/hosts', methods=['PUT'])
+def hosts():
+    res = json.dumps(dns.hosts())
+    return make_response(res, 200, None, 'application/json')
+
+@app.route('/resolv_conf', methods=['PUT'])
+def resolv_conf():
+    res = json.dumps(dns.resolvconf())
+    return make_response(res, 200, None, 'application/json')
+

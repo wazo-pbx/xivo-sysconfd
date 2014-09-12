@@ -29,6 +29,5 @@ from xivo_sysconf.modules import check, \
                                  dhcpd_update, \
                                  ha, \
                                  munin, \
-                                 resolvconf, \
                                  xivoctl, \
                                  commonconf
