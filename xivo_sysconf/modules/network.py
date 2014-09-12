@@ -18,7 +18,7 @@
 import json
 from xivo_sysconf.config import config
 from xivo_sysconf.network.dnetintf import DNETIntf
-from xivo_sysconf.network.dnetintf import ResolvConf
+from xivo_sysconf.network.resolvconf import ResolvConf
 from xivo_sysconf.config import config
 
 from flask.helpers import make_response

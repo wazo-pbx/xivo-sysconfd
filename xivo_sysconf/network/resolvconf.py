@@ -39,19 +39,17 @@ Rcc = {'hostname_file': os.path.join(os.path.sep, 'etc', 'hostname'),
 
 class ResolvConf(object):
 
-    def __init__(self, options):
+    def __init__(self, cfg):
         """Load parameters, etc"""
 
-        cfg = options.configuration
+        tpl_path = cfg.general.templates_path
+        custom_tpl_path = cfg.general.custom_templates_path
+        backup_path = cfg.general.backup_path
 
-        tpl_path = cfg.get('general', 'templates_path')
-        custom_tpl_path = cfg.get('general', 'custom_templates_path')
-        backup_path = cfg.get('general', 'backup_path')
-
-        if cfg.has_section('resolvconf'):
+        if hasattr(cfg, 'resolvconf'):
             for x in Rcc.iterkeys():
-                if cfg.has_option('resolvconf', x):
-                    Rcc[x] = cfg.get('resolvconf', x)
+                if hasattr(cfg.resolvconf, x):
+                    Rcc[x] = getattr(cfg.resolvconf, x)
 
         for optname in ('hostname', 'hosts', 'resolvconf'):
             Rcc["%s_tpl_file" % optname] = os.path.join(tpl_path,
