@@ -15,16 +15,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import logging
 import json
-
 from flask.helpers import make_response
 from ..sysconfd_server import app
-
-logger = logging.getLogger('xivo_sysconf.modules.status_check')
 
 @app.route('/status_check')
 def status_check():
     res = json.dumps({'status': 'up'})
     return make_response(res, 200, None, 'application/json')
-
