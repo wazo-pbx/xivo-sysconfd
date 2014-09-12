@@ -15,16 +15,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import logging
 import json
-
 from flask.helpers import make_response
 from flask import request
 from ..sysconfd_server import app
 from xivo_sysconf.ssl.openssl import OpenSSL
 from xivo_sysconf.config import config
 
-logger = logging.getLogger('xivo_sysconf.modules.ssl')
 openssl = OpenSSL(config)
 
 @app.route('/openssl_listcertificates')
