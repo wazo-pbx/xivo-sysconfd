@@ -31,7 +31,6 @@ from xivo import xivo_config
 from xivo import system
 from xivo import yaml_json
 
-from xivo_sysconf import helpers
 from xivo_sysconf.config import config
 
 log = logging.getLogger('xivo_sysconf.modules.dnetintf')

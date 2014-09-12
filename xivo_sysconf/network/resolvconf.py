@@ -18,14 +18,13 @@
 import os
 import logging
 import subprocess
+import re
 
 from time import time
 from shutil import copy2
 
 from xivo.xivo_config import txtsubst
 from xivo import system
-
-from xivo_sysconf import helpers
 
 Rcc = {'hostname_file': os.path.join(os.path.sep, 'etc', 'hostname'),
        'hostname_tpl_file': os.path.join('resolvconf', 'hostname'),
@@ -73,8 +72,8 @@ class ResolvConf(object):
         """
 
         if 'nameservers' in args:
-            args['nameservers'] = helpers.extract_scalar(args['nameservers'])
-            nameservers = helpers.unique_case_tuple(args['nameservers'])
+            args['nameservers'] = extract_scalar(args['nameservers'])
+            nameservers = unique_case_tuple(args['nameservers'])
 
             if len(nameservers) == len(args['nameservers']):
                 args['nameservers'] = list(nameservers)
@@ -82,8 +81,8 @@ class ResolvConf(object):
                 raise ("duplicated nameservers in %r" % list(args['nameservers']))
 
         if 'search' in args:
-            args['search'] = helpers.extract_scalar(args['search'])
-            search = helpers.unique_case_tuple(args['search'])
+            args['search'] = extract_scalar(args['search'])
+            search = unique_case_tuple(args['search'])
 
             if len(search) == len(args['search']):
                 args['search'] = list(search)
@@ -186,3 +185,47 @@ class ResolvConf(object):
             xvars['_XIVO_DNS_SEARCH'] = ""
 
         return xvars
+
+def castint(s):
+    if str(s).isdigit():
+        return int(s)
+    else:
+        return s
+
+def splitint(s):
+    return map(castint, re.findall(r'(\d+|\D+)', str(s)))
+
+def natsort(a, b):
+    return cmp(splitint(a), splitint(b))
+
+def is_scalar(var):
+    """ Returns True if is scalar or False otherwise """
+    return isinstance(var, (basestring, bool, int, float))
+
+def extract_scalar_from_list(xlist):
+    """ Extract scalar values from a list or tuple """
+    return [x for x in xlist if is_scalar(x)]
+
+def extract_scalar_from_dict(xdict):
+    """ Extract scalar values from a dict natural ordered by key """
+    return [xdict[key] for key in sorted(xdict.iterkeys(), natsort)
+                            if is_scalar(xdict[key])]
+
+def extract_scalar(var):
+    """
+    Extract scalar from tuple, list and dict
+    Return tuple of scalar values
+    """
+    if isinstance(var, (tuple, list)):
+        return tuple(extract_scalar_from_list(var))
+    elif isinstance(var, dict):
+        return tuple(extract_scalar_from_dict(var))
+    elif is_scalar(var):
+        return (var,)
+    else:
+        return
+
+def unique_case_tuple(sequence):
+    """ Build an ordered case-insensitive collection """
+    xlist = dict(zip(map(str.lower, sequence), sequence)).values()
+    return tuple([x for x in sequence if x in xlist])
