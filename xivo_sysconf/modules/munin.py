@@ -15,38 +15,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import logging, subprocess
 import json
-
 from flask.helpers import make_response
 from ..sysconfd_server import app
 
-class Munin(object):
-    def __init__(self):
-        super(Munin, self).__init__()
-        self.log = logging.getLogger('xivo_sysconf.modules.munin')
-
-        self.cmd1 = ['/usr/sbin/xivo-monitoring-update']
-        self.cmd2 = ['/usr/bin/munin-cron', '--force-root']
-
-    def update(self):
-        try:
-            p = subprocess.Popen(self.cmd1, close_fds=True)
-            ret = p.wait()
-        except Exception:
-            self.log.debug("can't execute '%s'" % self.cmd1)
-            raise ("can't execute '%s'" % self.cmd1)
-        if ret != 0:
-            raise ("'%s' process return error %d" % (self.cmd1, ret))
-
-        try:
-            p = subprocess.Popen(self.cmd2, close_fds=True)
-        except Exception:
-            self.log.debug("can't execute '%s'" % self.cmd2)
-            raise ("can't execute '%s'" % self.cmd2[0])
-
-
-        return True
+from xivo_sysconf.sys.munin import Munin
 
 munin = Munin()
 
