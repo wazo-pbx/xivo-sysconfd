@@ -15,8 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import json
-from flask.helpers import make_response
+from flask import jsonify
 from xivo_sysconf.sysconfd_server import app
 from xivo.sys.munin import Munin
 
@@ -24,5 +23,4 @@ from xivo.sys.munin import Munin
 @app.route('/munin_update')
 def munin_update():
     munin = Munin()
-    res = json.dumps(munin.update())
-    return make_response(res, 200, None, 'application/json')
+    return jsonify(munin.update())

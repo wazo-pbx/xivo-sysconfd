@@ -15,8 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import json
-from flask.helpers import make_response
+from flask import jsonify
 from xivo_sysconf.sysconfd_server import app
 from xivo.sys.services import Services
 
@@ -25,5 +24,4 @@ from xivo.sys.services import Services
 def services_action(service, action):
     services = Services()
     res_action = services.action(service, action).rstrip()
-    res = json.dumps({"Message": res_action})
-    return make_response(res, 200, None, 'application/json')
+    return jsonify({"Message": res_action})

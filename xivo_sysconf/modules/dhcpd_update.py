@@ -15,8 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import json
-from flask.helpers import make_response
+from flask import jsonify
 from xivo_sysconf.sysconfd_server import app
 from xivo.sys.dhcpd import Dhcpd
 
@@ -24,5 +23,4 @@ from xivo.sys.dhcpd import Dhcpd
 @app.route('/dhcpd_update')
 def dhcp_update():
     dhcpd = Dhcpd()
-    res = json.dumps(dhcpd.update())
-    return make_response(res, 200, None, 'application/json')
+    return jsonify(dhcpd.update())

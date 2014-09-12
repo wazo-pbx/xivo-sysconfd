@@ -15,15 +15,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import json
-from flask.helpers import make_response
+from flask import jsonify
 from xivo.sys.xivoctl import XiVOCTL
 from xivo_sysconf.sysconfd_server import app
-
 
 @app.route('/xivoctl/<service>/<action>')
 def xivo_ctl(service, action):
     xivoctl = XiVOCTL()
     res_action = xivoctl.action(service, action).rstrip()
-    res = json.dumps({"Message": res_action})
-    return make_response(res, 200, None, 'application/json')
+    return jsonify({"Message": res_action})

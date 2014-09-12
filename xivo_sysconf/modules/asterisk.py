@@ -15,8 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import json
-from flask.helpers import make_response
+from flask import jsonify
 from xivo_sysconf.sysconfd_server import app
 from xivo.asterisk.voicemail import AsteriskVoicemail
 
@@ -24,5 +23,4 @@ from xivo.asterisk.voicemail import AsteriskVoicemail
 @app.route('/delete_voicemail/<context>/<mailbox>', methods=['DELETE'])
 def delete_voicemail(context, mailbox):
     voicemail = AsteriskVoicemail()
-    res = json.dumps(voicemail.delete(context, mailbox))
-    return make_response(res, 200, None, 'application/json')
+    return jsonify(voicemail.delete(context, mailbox))

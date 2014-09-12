@@ -15,9 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import json
-from flask.helpers import make_response
-from flask import request
+from flask import request, jsonify
 from xivo_sysconf.sysconfd_server import app
 from xivo.sys.ha import _PostgresConfigUpdater, _CronFileInstaller, HAConfigManager
 
@@ -25,12 +23,10 @@ from xivo.sys.ha import _PostgresConfigUpdater, _CronFileInstaller, HAConfigMana
 @app.route('/get_ha_config')
 def get_ha_config():
     ha_config_manager = HAConfigManager(_PostgresConfigUpdater, _CronFileInstaller())
-    res = json.dumps(ha_config_manager.get_ha_config())
-    return make_response(res, 200, None, 'application/json')
+    return jsonify(ha_config_manager.get_ha_config())
 
 @app.route('/update_ha_config', methods=['POST'])
 def update_ha_config():
     ha_config_manager = HAConfigManager(_PostgresConfigUpdater, _CronFileInstaller())
-    data = json.loads(request.data)
-    res = json.dumps(ha_config_manager.update_ha_config(data))
-    return make_response(res, 200, None, 'application/json')
+    data = request.get_json(True)
+    return jsonify(ha_config_manager.update_ha_config(data))

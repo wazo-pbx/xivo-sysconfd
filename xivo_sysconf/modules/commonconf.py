@@ -15,22 +15,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-
-import json
-from flask.helpers import make_response
-from flask import request
+from flask import request, jsonify
 from xivo_sysconf.sysconfd_server import app
 from xivo.sys.commonconf import CommonConf
 
 @app.route('/commonconf_apply')
 def commonconf_apply():
     commonconf = CommonConf(app.config['sysconfd'])
-    res = json.dumps(commonconf.apply())
-    return make_response(res, 200, None, 'application/json')
+    return jsonify(commonconf.apply())
 
 @app.route('/commonconf_generate', methods=['POST'])
 def commonconf_generate():
     commonconf = CommonConf(app.config['sysconfd'])
-    data = json.loads(request.data)
-    res = json.dumps(commonconf.generate(data))
-    return make_response(res, 200, None, 'application/json')
+    data = request.get_json(True)
+    return jsonify(commonconf.generate(data))
