@@ -18,6 +18,7 @@
 
 import json
 from flask.helpers import make_response
+from flask import request
 from xivo_sysconf.sysconfd_server import app
 from xivo_sysconf.sys.commonconf import CommonConf
 from xivo_sysconf.config import config
