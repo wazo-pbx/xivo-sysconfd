@@ -16,13 +16,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 import json
-from xivo_sysconf.config import config
-from xivo_sysconf.network.dnetintf import DNETIntf
-from xivo_sysconf.network.resolvconf import ResolvConf
-from xivo_sysconf.config import config
-
+from xivo.network.dnetintf import DNETIntf
+from xivo.network.resolvconf import ResolvConf
 from flask.helpers import make_response
 from flask import request
+
+from xivo_sysconf.config import config
+from xivo_sysconf.config import config
 from xivo_sysconf.sysconfd_server import app
 
 net = DNETIntf()

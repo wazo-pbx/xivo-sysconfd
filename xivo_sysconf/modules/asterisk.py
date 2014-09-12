@@ -18,7 +18,7 @@
 import json
 from flask.helpers import make_response
 from xivo_sysconf.sysconfd_server import app
-from xivo_sysconf.sys.asterisk import Asterisk
+from xivo.sys.asterisk import Asterisk
 
 asterisk = Asterisk()
 

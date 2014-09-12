@@ -17,8 +17,8 @@
 
 import json
 from flask.helpers import make_response
+from xivo.sys.xivoctl import XiVOCTL
 from xivo_sysconf.sysconfd_server import app
-from xivo_sysconf.sys.xivoctl import XiVOCTL
 
 xivoctl = XiVOCTL()
 

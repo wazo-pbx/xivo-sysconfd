@@ -18,7 +18,7 @@
 import json
 from flask.helpers import make_response
 from xivo_sysconf.sysconfd_server import app
-from xivo_sysconf.sys.services import Services
+from xivo.sys.services import Services
 
 services = Services()
 

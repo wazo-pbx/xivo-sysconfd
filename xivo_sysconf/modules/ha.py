@@ -19,7 +19,7 @@ import json
 from flask.helpers import make_response
 from flask import request
 from xivo_sysconf.sysconfd_server import app
-from xivo_sysconf.sys.ha import _PostgresConfigUpdater, _CronFileInstaller, HAConfigManager
+from xivo.sys.ha import _PostgresConfigUpdater, _CronFileInstaller, HAConfigManager
 
 ha_config_manager = HAConfigManager(_PostgresConfigUpdater, _CronFileInstaller())
 

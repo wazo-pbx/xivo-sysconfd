@@ -18,7 +18,7 @@
 import json
 from flask.helpers import make_response
 from xivo_sysconf.sysconfd_server import app
-from xivo_sysconf.sys.munin import Munin
+from xivo.sys.munin import Munin
 
 munin = Munin()
 
