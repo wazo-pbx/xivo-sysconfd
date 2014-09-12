@@ -15,15 +15,25 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import json
-from flask.helpers import make_response
-from ..sysconfd_server import app
+import os.path
+import shutil
+import logging
 
-from xivo_sysconf.sys.asterisk import Asterisk
+logger = logging.getLogger('xivo_sysconf.modules.delete_voicemail')
 
-asterisk = Asterisk()
+class Asterisk(object):
+    def __init__(self, base_vmail_path='/var/spool/asterisk/voicemail'):
+        self._base_vmail_path = base_vmail_path
 
-@app.route('/delete_voicemail/<context>/<mailbox>', methods=['DELETE'])
-def delete_voicemail(context, mailbox):
-    res = json.dumps(asterisk.delete_voicemail(context, mailbox))
-    return make_response(res, 200, None, 'application/json')
+    def delete_voicemail(self, context, mailbox):
+        """Delete spool dir associated with voicemail
+
+            options:
+                mailbox    : voicemail name
+                context : voicemail context (opt. default is 'default')
+        """
+        vmpath = os.path.join(self._base_vmail_path, context, mailbox)
+        if os.path.exists(vmpath):
+            shutil.rmtree(vmpath)
+
+        return True
