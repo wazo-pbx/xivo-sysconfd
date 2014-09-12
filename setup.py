@@ -13,6 +13,7 @@ setup(
     packages=['xivo_sysconf',
               'xivo_sysconf.network',
               'xivo_sysconf.ssl',
+              'xivo_sysconf.sys',
               'xivo_sysconf.modules'],
     scripts=['bin/xivo-sysconfd']
 )
