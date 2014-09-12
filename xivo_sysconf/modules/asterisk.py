@@ -18,11 +18,11 @@
 import json
 from flask.helpers import make_response
 from xivo_sysconf.sysconfd_server import app
-from xivo.sys.asterisk import Asterisk
+from xivo.asterisk.voicemail import AsteriskVoicemail
 
-asterisk = Asterisk()
+voicemail = AsteriskVoicemail()
 
 @app.route('/delete_voicemail/<context>/<mailbox>', methods=['DELETE'])
 def delete_voicemail(context, mailbox):
-    res = json.dumps(asterisk.delete_voicemail(context, mailbox))
+    res = json.dumps(voicemail.delete(context, mailbox))
     return make_response(res, 200, None, 'application/json')
