@@ -17,26 +17,39 @@
 
 import logging
 import os
+import signal
 
 from gevent.wsgi import WSGIServer
 
 from xivo.daemonize import pidfile_context
 from xivo.xivo_logging import setup_logging
-from xivo_sysconf.config import config
+
+from xivo_sysconf import config as conf
 from xivo_sysconf import sysconfd_server
 
 logger = logging.getLogger(__name__)
 
 def main():
-    setup_logging(config._LOG_FILENAME, config.foreground, config.debug)
+    config = conf.fetch_and_merge_config()
+    #setup_logging(config.LOG_FILENAME, config.foreground, loglevel=config.loglevel)
 
-    with pidfile_context(config._PID_FILENAME, config.foreground):
-        _run()
+    with pidfile_context(config.PID_FILENAME, config.foreground):
+        _run(config)
 
-def _run():
+def _run(config):
+    _init_signal()
+
     logger.debug('WSGIServer starting with uid %s', os.getuid())
+
+    sysconfd_server.app.config['sysconfd'] = config
     http_server = WSGIServer((config.general.listen, config.general.port), sysconfd_server.app)
     http_server.serve_forever()
+
+def _init_signal():
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+
+def _handle_sigterm(signum, frame):
+    raise SystemExit()
 
 if __name__ == '__main__':
     main()

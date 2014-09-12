@@ -20,18 +20,17 @@ import json
 from flask.helpers import make_response
 from flask import request
 from xivo_sysconf.sysconfd_server import app
-from xivo_sysconf.config import config
 from xivo.sys.commonconf import CommonConf
-
-commonconf = CommonConf(config)
 
 @app.route('/commonconf_apply')
 def commonconf_apply():
+    commonconf = CommonConf(app.config['sysconfd'])
     res = json.dumps(commonconf.apply())
     return make_response(res, 200, None, 'application/json')
 
 @app.route('/commonconf_generate', methods=['POST'])
 def commonconf_generate():
+    commonconf = CommonConf(app.config['sysconfd'])
     data = json.loads(request.data)
     res = json.dumps(commonconf.generate(data))
     return make_response(res, 200, None, 'application/json')

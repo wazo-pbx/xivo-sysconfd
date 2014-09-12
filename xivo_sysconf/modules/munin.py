@@ -20,9 +20,9 @@ from flask.helpers import make_response
 from xivo_sysconf.sysconfd_server import app
 from xivo.sys.munin import Munin
 
-munin = Munin()
 
 @app.route('/munin_update')
 def munin_update():
+    munin = Munin()
     res = json.dumps(munin.update())
     return make_response(res, 200, None, 'application/json')

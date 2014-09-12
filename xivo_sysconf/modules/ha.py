@@ -21,15 +21,16 @@ from flask import request
 from xivo_sysconf.sysconfd_server import app
 from xivo.sys.ha import _PostgresConfigUpdater, _CronFileInstaller, HAConfigManager
 
-ha_config_manager = HAConfigManager(_PostgresConfigUpdater, _CronFileInstaller())
 
 @app.route('/get_ha_config')
 def get_ha_config():
+    ha_config_manager = HAConfigManager(_PostgresConfigUpdater, _CronFileInstaller())
     res = json.dumps(ha_config_manager.get_ha_config())
     return make_response(res, 200, None, 'application/json')
 
 @app.route('/update_ha_config', methods=['POST'])
 def update_ha_config():
+    ha_config_manager = HAConfigManager(_PostgresConfigUpdater, _CronFileInstaller())
     data = json.loads(request.data)
     res = json.dumps(ha_config_manager.update_ha_config(data))
     return make_response(res, 200, None, 'application/json')

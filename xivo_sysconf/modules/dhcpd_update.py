@@ -20,9 +20,9 @@ from flask.helpers import make_response
 from xivo_sysconf.sysconfd_server import app
 from xivo.sys.dhcpd import Dhcpd
 
-dhcpd = Dhcpd()
 
 @app.route('/dhcpd_update')
 def dhcp_update():
+    dhcpd = Dhcpd()
     res = json.dumps(dhcpd.update())
     return make_response(res, 200, None, 'application/json')

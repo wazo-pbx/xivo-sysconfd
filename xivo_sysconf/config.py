@@ -18,44 +18,58 @@
 import argparse
 import os
 import yaml
-
-from StringIO import StringIO
-
-SysconfDefaultsConf = StringIO("""
-[general]
-xivo_config_path        = /etc/xivo
-templates_path          = /usr/share/xivo-sysconfd/templates
-custom_templates_path   = /etc/xivo/sysconfd/custom-templates
-backup_path             = /var/backups/xivo-sysconfd
-""")
+import pprint
+from xivo.xivo_logging import get_log_level_by_name
 
 _DAEMONNAME = 'xivo-sysconfd'
 _CONF_FILENAME = '{}.yml'.format(_DAEMONNAME)
 
+class ConfigSysconfd(object):
 
-class ConfigXivosysconfd(object):
+    LOG_FILENAME = '/var/log/{}.log'.format(_DAEMONNAME)
+    PID_FILENAME = '/var/run/{daemon}/{daemon}.pid'.format(daemon=_DAEMONNAME)
+    SOCKET_FILENAME = '/tmp/{}.sock'.format(_DAEMONNAME)
 
-    _LOG_FILENAME = '/var/log/{}.log'.format(_DAEMONNAME)
-    _PID_FILENAME = '/var/run/{daemon}/{daemon}.pid'.format(daemon=_DAEMONNAME)
-    _SOCKET_FILENAME = '/tmp/{}.sock'.format(_DAEMONNAME)
+    def __init__(self, d):
+        for k in d:
+            if isinstance(d[k], dict):
+                self.__dict__[k] = ConfigSysconfd(d[k])
+            elif isinstance(d[k], (list, tuple)):
+                l = []
+                for v in d[k]:
+                    if isinstance(v, dict):
+                        l.append(ConfigSysconfd(v))
+                    else:
+                        l.append(v)
+                self.__dict__[k] = l
+            else:
+                self.__dict__[k] = d[k]
 
-    def __init__(self, adict):
-        self._update_config(adict)
+    def __getitem__(self, name):
+        if name in self.__dict__:
+            return self.__dict__[name]
 
-    def _update_config(self, adict):
-        self.__dict__.update(adict)
-        for k, v in adict.items():
-            if isinstance(v, dict):
-                self.__dict__[k] = ConfigXivosysconfd(v)
+    def __iter__(self):
+        return iter(self.__dict__.keys())
 
+    def __repr__(self):
+        return pprint.pformat(self.__dict__)
 
-def configure():
+    @property
+    def debug(self):
+        return self.loglevel is 'debug'
+
+def _get_cli_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f",
                         '--foreground',
                         action='store_true',
                         default=False,
                         help="Foreground, don't daemonize")
+    parser.add_argument('-l',
+                        '--loglevel',
+                        help="Emit traces with LOGLEVEL details, must be one of:\n"
+                             "critical, error, warning, info, debug  Default: %(default)s")
     parser.add_argument('-d',
                         '--debug',
                         action='store_true',
@@ -69,21 +83,21 @@ def configure():
                         '--pidfile',
                         default="/var/run/xivo-sysconfd.pid",
                         help="Use PID file <pidfile> instead of %default")
-    parser.add_argument("--la",
-                        '--listen_addr',
-                        default='127.0.0.1',
-                        help="Listen on address <listen_addr> instead of %default")
-    parser.add_argument("--lp",
-                        '--listen_port',
-                        default=8668,
-                        help="Listen on port <listen_port> instead of %default")
     return parser.parse_args()
 
-def _get_config_raw(config_path):
+def _get_file_config(config_path):
     path = os.path.join(config_path, _CONF_FILENAME)
     with open(path) as fobj:
         return yaml.load(fobj)
 
-args_parsed = configure()
-config = ConfigXivosysconfd(_get_config_raw(args_parsed.config_path))
-config._update_config(vars(args_parsed))
+def fetch_and_merge_config():
+    parsed_cli_args = _get_cli_args()
+    raw_file_config = _get_file_config(parsed_cli_args.config_path)
+    args_parsed_dict = vars(parsed_cli_args)
+    if args_parsed_dict['loglevel'] is None:
+        args_parsed_dict['loglevel'] = raw_file_config['loglevel']
+    raw_file_config.update(args_parsed_dict)
+    config_obj = ConfigSysconfd(raw_file_config)
+    config_obj.loglevel = get_log_level_by_name(config_obj.loglevel)
+
+    return config_obj

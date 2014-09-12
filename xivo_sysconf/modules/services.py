@@ -20,10 +20,10 @@ from flask.helpers import make_response
 from xivo_sysconf.sysconfd_server import app
 from xivo.sys.services import Services
 
-services = Services()
 
 @app.route('/services/<service>/<action>')
 def services_action(service, action):
+    services = Services()
     res_action = services.action(service, action).rstrip()
     res = json.dumps({"Message": res_action})
     return make_response(res, 200, None, 'application/json')

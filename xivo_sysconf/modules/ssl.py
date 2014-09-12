@@ -20,48 +20,54 @@ from flask.helpers import make_response
 from flask import request
 from xivo.ssl.openssl import OpenSSL
 from xivo_sysconf.sysconfd_server import app
-from xivo_sysconf.config import config
 
-openssl = OpenSSL(config)
 
 @app.route('/openssl_listcertificates')
 def listcertificates():
+    openssl = OpenSSL(app.config['sysconfd'])
     res = json.dumps(openssl.listCertificates())
     return make_response(res, 200, None, 'application/json')
 
 @app.route('/openssl_certificateinfos/<certificate>')
 def getcertificatesinfos(certificate):
+    openssl = OpenSSL(app.config['sysconfd'])
     res = json.dumps(openssl.getCertificateInfos(certificate))
     return make_response(res, 200, None, 'application/json')
 
 @app.route('/openssl_exportpubkey/<certificate>')
 def exportpubkey(certificate):
+    openssl = OpenSSL(app.config['sysconfd'])
     res = json.dumps(openssl.getPubKey(certificate))
     return make_response(res, 200, None, 'application/json')
 
 @app.route('/openssl_export/<certificate>')
 def export_certificate(certificate):
+    openssl = OpenSSL(app.config['sysconfd'])
     res = json.dumps(openssl.export(certificate))
     return make_response(res, 200, None, 'application/json')
 
 @app.route('/openssl_import', methods=['POST'])
 def import_certificate():
+    openssl = OpenSSL(app.config['sysconfd'])
     res = json.dumps(openssl._import())
     return make_response(res, 200, None, 'application/json')
 
 @app.route('/openssl_createcacertificate', methods=['POST'])
 def createcacertificate():
+    openssl = OpenSSL(app.config['sysconfd'])
     data = json.loads(request.data)
     res = json.dumps(openssl.createSSLCACertificate(data))
     return make_response(res, 200, None, 'application/json')
 
 @app.route('/openssl_createcertificate', methods=['POST'])
 def createcertificate():
+    openssl = OpenSSL(app.config['sysconfd'])
     data = json.loads(request.data)
     res = json.dumps(openssl.createSSLCertificate(data))
     return make_response(res, 200, None, 'application/json')
 
 @app.route('/openssl_deletecacertificate', methods=['DELETE'])
 def deletecacertificate():
+    openssl = OpenSSL(app.config['sysconfd'])
     res = json.dumps(openssl.deleteCertificate())
     return make_response(res, 200, None, 'application/json')
