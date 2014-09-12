@@ -17,14 +17,12 @@
 
 
 import json
-import logging
 from flask.helpers import make_response
 from ..sysconfd_server import app
 
 from xivo_sysconf.sys.commonconf import CommonConf
 from xivo_sysconf.config import config
 
-logger = logging.getLogger('xivo_sysconf.modules.commonconf')
 commonconf = CommonConf(config)
 
 @app.route('/commonconf_apply')

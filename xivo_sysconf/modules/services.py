@@ -16,86 +16,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 import logging
-import os
-import subprocess
 import json
 
 from flask.helpers import make_response
 from ..sysconfd_server import app
+from xivo_sysconf.sys.services import Services
 
 logger = logging.getLogger('xivo_sysconf.modules.services')
-SERVICE_DIR = '/etc/init.d'
-
-
-class InvalidActionException(ValueError):
-    def __init__(self, service_name, action):
-        super(InvalidActionException, self).__init__(self)
-        self.service_name = service_name
-        self.action = action
-
-
-class InvalidServiceException(ValueError):
-    def __init__(self, service_name):
-        super(InvalidServiceException, self).__init__(self)
-        self.service_name = service_name
-
-
-class Services(object):
-
-    def action(self, service, action):
-        """
-        GET /services
-
-        >>> services('networking', 'restart')
-        """
-        output = self._run_action_for_service(service, action)
-
-        return output
-
-
-    def _run_action_for_service(self, service, action):
-        output = ''
-        try:
-            self._validate_action(service, action)
-            self._validate_service(service)
-            output = self._run_action_for_service_validated(service, action)
-        except InvalidActionException as e:
-            logger.error("action %s not authorized on %s service", e.action, e.service_name)
-        except InvalidServiceException as e:
-            logger.error("service %s is not valid", e.service_name)
-        return output
-
-
-    def _validate_action(self, service_name, action):
-        if action not in ['stop', 'start', 'restart']:
-            raise InvalidActionException(service_name, action)
-
-
-    def _validate_service(self, service_name):
-        all_service_names = os.listdir(SERVICE_DIR)
-        if service_name not in all_service_names:
-            raise InvalidServiceException(service_name)
-
-
-    def _run_action_for_service_validated(self, service, action):
-        output = ''
-        try:
-            command = ["%s/%s" % (SERVICE_DIR, service), action]
-            p = subprocess.Popen(command,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT,
-                                 close_fds=True)
-            output = p.communicate()[0]
-            logger.debug("%s : return code %d", ' '.join(command), p.returncode)
-
-            if p.returncode != 0:
-                raise (output)
-        except OSError:
-            logger.exception("Error while executing /etc/init.d script")
-            raise ("can't manage services")
-
-        return output
-
 services = Services()
 
 @app.route('/services/<service>/<action>')

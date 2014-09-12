@@ -15,39 +15,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-import logging, subprocess
 import json
-
-from xivo_sysconf.modules.services import Services
+from xivo_sysconf.sys.xivoctl import XiVOCTL
 
 from flask.helpers import make_response
 from ..sysconfd_server import app
-
-logger = logging.getLogger('xivo_sysconf.modules.xivoctl')
-
-class XiVOCTL(object):
-
-    def action(service, action):
-        if service == 'xivo-service':
-            try:
-                if act == 'start':
-                    Services.action('asterisk', 'stop')
-                p = subprocess.Popen(["%s" % service, act],
-                                     stdout=subprocess.PIPE,
-                                     stderr=subprocess.STDOUT,
-                                     close_fds=True)
-                output = p.communicate()[0]
-                logger.debug("%s %s : %d", service, act, p.returncode)
-
-                if p.returncode != 0:
-                    raise (output)
-            except OSError:
-                logger.exception("Error while executing %s script", service, act)
-                raise ("can't manage xivoctl")
-        else:
-            logger.error("service not exist: %s", service)
-
-        return output
 
 xivoctl = XiVOCTL()
 
