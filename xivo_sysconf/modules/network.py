@@ -23,7 +23,7 @@ from xivo_sysconf.config import config
 
 from flask.helpers import make_response
 from flask import request
-from ..sysconfd_server import app
+from xivo_sysconf.sysconfd_server import app
 
 net = DNETIntf()
 dns = ResolvConf(config)

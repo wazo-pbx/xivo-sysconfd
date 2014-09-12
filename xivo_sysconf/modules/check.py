@@ -17,7 +17,7 @@
 
 import json
 from flask.helpers import make_response
-from ..sysconfd_server import app
+from xivo_sysconf.sysconfd_server import app
 
 @app.route('/status_check')
 def status_check():

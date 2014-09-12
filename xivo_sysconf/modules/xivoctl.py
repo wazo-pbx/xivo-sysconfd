@@ -16,10 +16,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 import json
-from xivo_sysconf.sys.xivoctl import XiVOCTL
-
 from flask.helpers import make_response
-from ..sysconfd_server import app
+from xivo_sysconf.sysconfd_server import app
+from xivo_sysconf.sys.xivoctl import XiVOCTL
 
 xivoctl = XiVOCTL()
 
