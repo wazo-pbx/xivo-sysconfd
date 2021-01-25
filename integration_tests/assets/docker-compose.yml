@@ -1,0 +1,23 @@
+version: '3.7'
+services:
+  sync:
+    image: wazoplatform/wait
+    environment:
+      TIMEOUT: '${INTEGRATION_TEST_TIMEOUT}'
+
+  chatd:
+    image: xivo-sysconfd-test
+    olumes:
+      - ../..:/usr/src/xivo-sysconfd:ro
+      - ./etc/xivo/50-default.conf:/etc/xivo/sysconfd.conf:ro
+      # - '${LOCAL_GIT_REPOS}/xivo-lib-python/xivo:/opt/venv/lib/python3.7/site-packages/xivo'
+    ports:
+      - '8668'
+
+  rabbitmq:
+    image: rabbitmq
+    ports:
+      - '5672'
+    volumes:
+      - type: tmpfs
+        target: /var/lib/rabbitmq

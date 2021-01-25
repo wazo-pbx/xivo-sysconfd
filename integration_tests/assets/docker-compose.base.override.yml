@@ -1,0 +1,8 @@
+version: '3.7'
+services:
+  sync:
+    depends_on:
+      - sysconfd
+      - rabbitmq
+    environment:
+      TARGETS: "sysconfd:8668 rabbitmq:5672"

@@ -1,0 +1,8 @@
+FROM wazoplatform/xivo-sysconfd
+
+ENV PYTHONDONTWRITEBYTECODE='true'
+
+COPY . /usr/src/xivo-sysconfd
+
+WORKDIR /usr/src/xivo-sysconfd
+RUN python setup.py develop
